@@ -8,7 +8,8 @@ The Qwen backend statically links a pinned MIT-licensed GGML C++ core. This is
 **not a pure Rust inference implementation**. No Python, libtorch, external TTS
 process, network service or system-installed model runtime is needed at runtime.
 CPU is the initial common backend for Windows x64, Linux x64 and macOS ARM64.
-GPU acceleration and other CPU architectures are not yet validated.
+The x64 builds require AVX2, FMA and F16C. GPU acceleration and other CPU
+architectures are not yet validated.
 
 ## Build
 

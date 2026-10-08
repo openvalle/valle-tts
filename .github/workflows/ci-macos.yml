@@ -29,6 +29,7 @@ jobs:
         with:
           key: macos-rust-1.99
           cache-workspace-crates: true
+          cache-on-failure: true
       - name: Verify pinned native sources
         run: python scripts/check_vendor.py
       - name: Format
