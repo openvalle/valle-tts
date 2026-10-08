@@ -1,0 +1,795 @@
+// qwen.cpp: public ABI implementation.
+//
+// Every entry declared in qwen.h lives here under one extern "C" block
+// so the symbols carry C linkage and are linkable from C, Rust, Go,
+// Python ctypes and any other binding generator. The struct
+// qt_context opaque handle owns one BackendPair, one PipelineTTS
+// (which already embeds the PipelineCodec) and one BPETokenizer.
+// qt_init walks the load chain in dependency order and unwinds
+// whatever it already allocated when any step fails. qt_free mirrors
+// that order in reverse.
+//
+// This translation unit also absorbs the internal qt_set_error /
+// qt_throw / qt_log helpers that the rest of the codebase calls. The
+// log callback installed via qt_log_set routes every diagnostic from
+// any caller, internal or public.
+
+#include "qwen.h"
+
+#include "backend.h"
+#include "bpe.h"
+#include "pipeline-tts.h"
+#include "qt-error.h"
+#include "sampling-defaults.h"
+#include "speaker-encoder-extract.h"
+#include "timer.h"
+#include "version.h"
+
+#include <atomic>
+#include <cctype>
+#include <condition_variable>
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <deque>
+#include <mutex>
+#include <new>
+#include <random>
+#include <stdexcept>
+#include <string>
+#include <thread>
+#include <vector>
+
+// One voice reference extraction driven by the worker. The caller owns
+// audio and out for the whole lifetime of the job; status and error
+// fill at completion. error carries the qt_last_error() text captured
+// on the worker thread, so the caller replays it into its own thread
+// local slot. done is the owner's completion flag.
+struct RefJob {
+    const float *         audio;
+    int                   n_samples;
+    struct qt_voice_ref * out;
+    qt_status             status;
+    std::string           error;
+    bool                  done;
+};
+
+// Internal definition of the opaque handle. C++ types are fine here
+// because nothing in this struct ever crosses the public ABI boundary :
+// callers only ever see `struct qt_context *`. PipelineTTS already
+// embeds the PipelineCodec, so no separate codec field is needed.
+//
+// The worker thread is the single owner of every GGML compute on the
+// handle: qt_synthesize enqueues a TtsJob, qt_extract_voice_ref
+// enqueues a RefJob, and both block on cv_done until the worker retires
+// them. One compute owner means one backend thread team for the whole
+// process and no mutex around the backend. The worker holds the long
+// lived TtsEngine, drains pending extractions at a frame boundary,
+// admits queued jobs into free slots and steps the batch until both the
+// queues and the slots drain.
+struct qt_context {
+    BackendPair  bp;
+    PipelineTTS  pt;
+    BPETokenizer tok;
+
+    std::thread             worker;
+    std::mutex              mu;
+    std::condition_variable cv_work;
+    std::condition_variable cv_done;
+    std::deque<TtsJob *>    queue;
+    std::deque<RefJob *>    ref_queue;
+    bool                    stop = false;
+};
+
+// Thread-local backing store for qt_last_error(). std::string sized once
+// per thread, grows on demand, never freed across calls: the std runtime
+// reclaims it on thread exit. An empty string means "no error recorded
+// on this thread yet", which qt_last_error() exposes as "".
+static thread_local std::string g_last_error;
+
+void qt_set_error_v(const char * fmt, va_list ap) {
+    if (!fmt) {
+        g_last_error.clear();
+        return;
+    }
+    // Two-pass vsnprintf: first call sizes the buffer, second writes the
+    // message. va_copy keeps the original ap valid for the second pass.
+    va_list ap2;
+    va_copy(ap2, ap);
+    int needed = std::vsnprintf(nullptr, 0, fmt, ap2);
+    va_end(ap2);
+    if (needed < 0) {
+        g_last_error = "qt_set_error: vsnprintf failed";
+        return;
+    }
+    g_last_error.resize(static_cast<size_t>(needed));
+    std::vsnprintf(g_last_error.data(), static_cast<size_t>(needed) + 1, fmt, ap);
+}
+
+void qt_set_error(const char * fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    qt_set_error_v(fmt, ap);
+    va_end(ap);
+}
+
+// Formats a message with printf semantics and throws std::runtime_error.
+// The catch site at the binary entry inspects the what() string and feeds
+// it into qt_set_error so the user-visible diagnostic is identical
+// whether the failure used the bool-return path or the throw path.
+void qt_throw(const char * fmt, ...) {
+    char buf[1024];
+    if (fmt) {
+        va_list ap;
+        va_start(ap, fmt);
+        std::vsnprintf(buf, sizeof(buf), fmt, ap);
+        va_end(ap);
+    } else {
+        buf[0] = '\0';
+    }
+    throw std::runtime_error(buf);
+}
+
+// Process-wide log callback. Atomic so qt_log_set can replace it without
+// locking: write happens with memory_order_release, every reader sees a
+// fully published callback pointer paired with its user_data slot.
+// std::atomic on a function pointer is lock-free on every platform we
+// target. user_data is a plain pointer because it is only ever published
+// alongside cb under the same release ordering.
+static std::atomic<qt_log_cb> g_log_cb{ nullptr };
+static void *                 g_log_cb_user = nullptr;
+
+// Routes one log line to the installed callback or to stderr. Two-pass
+// vsnprintf sizes the heap buffer when the message exceeds the stack
+// scratchpad, which keeps the common case allocation-free.
+void qt_log(qt_log_level level, const char * fmt, ...) {
+    if (!fmt) {
+        return;
+    }
+    char    stackbuf[512];
+    char *  buf    = stackbuf;
+    int     needed = 0;
+    va_list ap;
+    va_start(ap, fmt);
+    {
+        va_list ap2;
+        va_copy(ap2, ap);
+        needed = std::vsnprintf(stackbuf, sizeof(stackbuf), fmt, ap2);
+        va_end(ap2);
+    }
+    if (needed < 0) {
+        va_end(ap);
+        return;
+    }
+    std::string heapbuf;
+    if ((size_t) needed >= sizeof(stackbuf)) {
+        heapbuf.resize((size_t) needed);
+        std::vsnprintf(heapbuf.data(), (size_t) needed + 1, fmt, ap);
+        buf = heapbuf.data();
+    }
+    va_end(ap);
+
+    qt_log_cb cb = g_log_cb.load(std::memory_order_acquire);
+    if (cb) {
+        cb(level, buf, g_log_cb_user);
+    } else {
+        std::fprintf(stderr, "%s\n", buf);
+    }
+}
+
+// Resolve a -1 seed to a hardware random 64-bit value. Anything else is
+// forwarded verbatim, so reproducibility is one explicit seed away. The
+// resolved value travels into the job the engine runs so the dump traces
+// log the exact seed that drove the sampler, even when the caller asked
+// for non determinism.
+static int64_t qt_resolve_seed(int64_t seed) {
+    if (seed >= 0) {
+        return seed;
+    }
+    std::random_device rd;
+    return (int64_t) (((uint64_t) rd() << 32) ^ (uint64_t) rd());
+}
+
+extern "C" {
+
+const char * qt_version(void) {
+    // QWEN_VERSION is a string literal injected by tools/version.cmake
+    // ("<git-hash> (<date>)"), so its storage already has process
+    // lifetime and no formatting wrapper is needed.
+    return QWEN_VERSION;
+}
+
+const char * qt_last_error(void) {
+    // c_str() on an empty std::string is guaranteed to point to a NUL
+    // byte by C++11, so callers never have to NULL-check the result.
+    return g_last_error.c_str();
+}
+
+void qt_audio_free(struct qt_audio * a) {
+    if (!a) {
+        return;
+    }
+    if (a->samples) {
+        std::free(a->samples);
+    }
+    a->samples     = nullptr;
+    a->n_samples   = 0;
+    a->sample_rate = 0;
+    a->channels    = 0;
+}
+
+void qt_log_set(qt_log_cb cb, void * user_data) {
+    g_log_cb_user = user_data;
+    g_log_cb.store(cb, std::memory_order_release);
+}
+
+// Codec chunk default, shared by qt_init_default_params and the
+// qt_init resolution of an unset value.
+static const float QT_CODEC_CHUNK_SEC_DEFAULT = 24.0f;
+
+void qt_init_default_params(struct qt_init_params * p) {
+    p->abi_version = QT_ABI_VERSION;
+    p->talker_path = nullptr;
+    p->codec_path  = nullptr;
+    p->use_fa      = true;
+    p->clamp_fp16  = false;
+    p->max_batch   = 1;
+
+    p->codec_chunk_sec = QT_CODEC_CHUNK_SEC_DEFAULT;
+}
+
+void qt_tts_default_params(struct qt_tts_params * p) {
+    p->abi_version           = QT_ABI_VERSION;
+    p->text                  = nullptr;
+    p->lang                  = nullptr;
+    p->instruct              = nullptr;
+    p->speaker               = nullptr;
+    p->ref_audio_24k         = nullptr;
+    p->ref_n_samples         = 0;
+    p->ref_text              = nullptr;
+    p->seed                  = -1;
+    p->max_new_tokens        = QT_DEFAULT_MAX_NEW_TOKENS;
+    p->temperature           = QT_DEFAULT_TEMPERATURE;
+    p->top_k                 = QT_DEFAULT_TOP_K;
+    p->top_p                 = QT_DEFAULT_TOP_P;
+    p->repetition_penalty    = QT_DEFAULT_REPETITION_PENALTY;
+    p->subtalker_temperature = QT_DEFAULT_SUBTALKER_TEMPERATURE;
+    p->subtalker_top_k       = QT_DEFAULT_SUBTALKER_TOP_K;
+    p->subtalker_top_p       = QT_DEFAULT_SUBTALKER_TOP_P;
+    p->dump_dir              = nullptr;
+    p->cancel                = nullptr;
+    p->cancel_user_data      = nullptr;
+    p->on_chunk              = nullptr;
+    p->on_chunk_user_data    = nullptr;
+    p->ref_spk_emb           = nullptr;
+    p->ref_spk_dim           = 0;
+    p->ref_codes             = nullptr;
+    p->ref_T                 = 0;
+}
+
+int qt_num_codebooks(const struct qt_context * q) {
+    if (!q) {
+        qt_set_error("qt_num_codebooks: q is NULL");
+        return 0;
+    }
+    return q->pt.num_code_groups;
+}
+
+// Reference extraction body, run by the worker. Loads the speaker
+// encoder on first use, runs the speaker embedding and the RVQ encode,
+// then copies both into the malloc owned buffers the ABI hands to the
+// caller. Every failure leaves job->out empty and its diagnostic in the
+// worker thread local slot, which the entry replays for the caller.
+static qt_status qt_extract_voice_ref_run(qt_context * q, RefJob * job) {
+    try {
+        // Lazy residency: the first reference audio request pays the
+        // weight load once, mirroring the qt_synthesize ref_audio path.
+        if (!q->pt.spk_enc_loaded) {
+            Timer t_spk_load;
+            if (!speaker_encoder_weights_load(&q->pt.speaker_encoder, q->pt.gguf_talker, q->pt.backend) ||
+                q->pt.speaker_encoder.weight_buf == NULL) {
+                q->pt.has_speaker_encoder = false;
+                qt_set_error("qt_extract_voice_ref: speaker encoder load failed");
+                return QT_STATUS_GENERATE_FAILED;
+            }
+            q->pt.spk_enc_loaded = true;
+            qt_log(QT_LOG_INFO, "[Qwen] Speaker encoder lazy loaded in %.0f ms", t_spk_load.ms());
+        }
+
+        std::vector<float> emb;
+        if (!speaker_encoder_extract(&q->pt.speaker_encoder, q->pt.sched, job->audio, job->n_samples, emb)) {
+            qt_set_error("qt_extract_voice_ref: speaker embedding extraction failed");
+            return QT_STATUS_GENERATE_FAILED;
+        }
+        if ((int) emb.size() != q->pt.talker.hidden_size) {
+            qt_set_error("qt_extract_voice_ref: speaker embedding size %zu mismatches talker hidden %d", emb.size(),
+                         q->pt.talker.hidden_size);
+            return QT_STATUS_GENERATE_FAILED;
+        }
+
+        const int            aligned_n = (job->n_samples / TOKENIZER_HOP_LENGTH) * TOKENIZER_HOP_LENGTH;
+        const int            ref_T     = aligned_n / TOKENIZER_HOP_LENGTH;
+        std::vector<int32_t> codes     = pipeline_codec_encode(&q->pt.codec, job->audio, aligned_n);
+        if (codes.empty()) {
+            qt_set_error("qt_extract_voice_ref: pipeline_codec_encode returned empty codes");
+            return QT_STATUS_GENERATE_FAILED;
+        }
+        const int num_codebooks = q->pt.num_code_groups;
+        if ((codes.size() % (size_t) num_codebooks) != 0) {
+            qt_set_error("qt_extract_voice_ref: encoded code count %zu is not divisible by %d", codes.size(),
+                         num_codebooks);
+            return QT_STATUS_GENERATE_FAILED;
+        }
+        const int codes_T = (int) (codes.size() / (size_t) num_codebooks);
+        if (codes_T != ref_T) {
+            qt_set_error("qt_extract_voice_ref: encoded frame count %d mismatches aligned frame count %d", codes_T,
+                         ref_T);
+            return QT_STATUS_GENERATE_FAILED;
+        }
+
+        const size_t emb_bytes   = emb.size() * sizeof(float);
+        const size_t codes_bytes = codes.size() * sizeof(int32_t);
+        float *      emb_copy    = (float *) std::malloc(emb_bytes);
+        int32_t *    codes_copy  = (int32_t *) std::malloc(codes_bytes);
+        if (!emb_copy || !codes_copy) {
+            std::free(emb_copy);
+            std::free(codes_copy);
+            qt_set_error("qt_extract_voice_ref: malloc failed for %zu emb bytes and %zu code bytes", emb_bytes,
+                         codes_bytes);
+            return QT_STATUS_OOM;
+        }
+        std::memcpy(emb_copy, emb.data(), emb_bytes);
+        std::memcpy(codes_copy, codes.data(), codes_bytes);
+
+        job->out->ref_spk_emb   = emb_copy;
+        job->out->ref_spk_dim   = (int) emb.size();
+        job->out->ref_codes     = codes_copy;
+        job->out->ref_T         = ref_T;
+        job->out->num_codebooks = num_codebooks;
+
+        qt_log(QT_LOG_INFO, "[Qwen] Extracted voice ref: spk_dim=%d K=%d T=%d (%d/%d samples)", job->out->ref_spk_dim,
+               job->out->num_codebooks, job->out->ref_T, aligned_n, job->n_samples);
+        return QT_STATUS_OK;
+    } catch (const std::bad_alloc &) {
+        qt_set_error("qt_extract_voice_ref: out of memory");
+        qt_voice_ref_free(job->out);
+        return QT_STATUS_OOM;
+    } catch (const std::exception & e) {
+        qt_set_error("%s", e.what());
+        qt_log(QT_LOG_ERROR, "[Qwen] %s", e.what());
+        qt_voice_ref_free(job->out);
+        return QT_STATUS_GENERATE_FAILED;
+    }
+}
+
+// Compute worker: the single thread that touches the backend on this
+// handle. Sleeps until work arrives, then drains pending extractions at
+// a frame boundary, admits queued jobs into free slots and steps the
+// batch until both queues and the slots drain. Retired jobs get their
+// done flag under mu and a cv_done broadcast so the blocked callers
+// wake.
+static void qt_worker(qt_context * q) {
+    TtsEngine *                  e = tts_engine_new(&q->pt, &q->tok);
+    std::vector<TtsJob *>        retired;
+    std::unique_lock<std::mutex> lk(q->mu);
+    for (;;) {
+        q->cv_work.wait(lk, [&] { return q->stop || !q->queue.empty() || !q->ref_queue.empty(); });
+        if (q->stop && q->queue.empty() && q->ref_queue.empty()) {
+            break;
+        }
+        while (!q->queue.empty() || !q->ref_queue.empty() || tts_engine_active(e) > 0) {
+            // Extractions run between two frames: they stall the active
+            // slots for one extraction and never split a frame.
+            while (!q->ref_queue.empty()) {
+                RefJob * r = q->ref_queue.front();
+                q->ref_queue.pop_front();
+                lk.unlock();
+                r->status = qt_extract_voice_ref_run(q, r);
+                if (r->status != QT_STATUS_OK) {
+                    r->error = qt_last_error();
+                }
+                lk.lock();
+                r->done = true;
+                q->cv_done.notify_all();
+            }
+            // Admit up to max_batch: joins happen at frame boundaries,
+            // each one stalls the active slots for one prefill.
+            while (!q->queue.empty() && tts_engine_active(e) < q->pt.max_batch) {
+                TtsJob * j = q->queue.front();
+                q->queue.pop_front();
+                lk.unlock();
+                const bool admitted = tts_engine_admit(e, j);
+                lk.lock();
+                if (!admitted) {
+                    j->done = true;
+                    q->cv_done.notify_all();
+                }
+            }
+            if (tts_engine_active(e) == 0) {
+                continue;
+            }
+            lk.unlock();
+            retired.clear();
+            tts_engine_step(e, &retired);
+            lk.lock();
+            for (TtsJob * j : retired) {
+                j->done = true;
+            }
+            if (!retired.empty()) {
+                q->cv_done.notify_all();
+            }
+        }
+    }
+    lk.unlock();
+    tts_engine_free(e);
+}
+
+struct qt_context * qt_init(const struct qt_init_params * params) {
+    if (!params || !params->talker_path || !params->codec_path) {
+        qt_set_error("qt_init: params, talker_path or codec_path is NULL");
+        qt_log(QT_LOG_ERROR, "[Qwen] qt_init requires talker_path and codec_path");
+        return nullptr;
+    }
+    if (params->abi_version > QT_ABI_VERSION || params->abi_version < QT_ABI_MIN_VERSION) {
+        qt_set_error("qt_init: params->abi_version %d outside the supported range [%d, %d]", params->abi_version,
+                     QT_ABI_MIN_VERSION, QT_ABI_VERSION);
+        qt_log(QT_LOG_ERROR, "[Qwen] qt_init params struct carries an unsupported ABI (%d, supported [%d, %d])",
+               params->abi_version, QT_ABI_MIN_VERSION, QT_ABI_VERSION);
+        return nullptr;
+    }
+
+    qt_log(QT_LOG_INFO, "[Qwen] qwentts.cpp %s", qt_version());
+
+    const int max_batch = params->max_batch > 1 ? params->max_batch : 1;
+
+    // The chunk width resolves once here: it is a property of the
+    // handle, read by every buffered decode it runs.
+    const float chunk_sec = params->codec_chunk_sec > 0.0f ? params->codec_chunk_sec : QT_CODEC_CHUNK_SEC_DEFAULT;
+
+    // new qt_context() value-initialises every field: POD aggregates
+    // (BackendPair, PipelineTTS) are zero-init, std containers in
+    // BPETokenizer construct empty.
+    qt_context * q = new qt_context();
+
+    // The load chain runs inside a try block. Any failure deep in the
+    // GGUF reader, the codec load or the LM weight load throws via
+    // qt_throw; the catch funnels every variant into one cleanup via
+    // qt_free, which is idempotent on partial state (NULL-safe sched,
+    // NULL GGUF handles, refcount-correct backend release).
+    try {
+        q->bp = backend_init("Talker");
+        if (!q->bp.backend) {
+            qt_throw("qt_init: backend_init failed (no GGML backend available)");
+        }
+
+        if (!pipeline_tts_load(&q->pt, params->talker_path, params->codec_path, q->bp, params->use_fa,
+                               params->clamp_fp16, max_batch, chunk_sec)) {
+            qt_throw("qt_init: pipeline_tts_load failed for '%s' / '%s'", params->talker_path, params->codec_path);
+        }
+
+        // BPE tokenizer payload lives inside the talker GGUF. Load the
+        // base vocab + the qwen3-tts text specials in one shot. The
+        // specials key list matches the keys written by the conversion
+        // script under the qwen3-tts.text.* namespace.
+        if (!load_bpe_from_gguf(&q->tok, params->talker_path)) {
+            qt_throw("qt_init: load_bpe_from_gguf failed for '%s'", params->talker_path);
+        }
+        const char * specials_keys[] = {
+            "qwen3-tts.text.im_start_id", "qwen3-tts.text.im_end_id",  "qwen3-tts.text.tts_pad_id",
+            "qwen3-tts.text.tts_bos_id",  "qwen3-tts.text.tts_eos_id",
+        };
+        bpe_load_specials_from_keys(&q->tok, params->talker_path, specials_keys, 5);
+    } catch (const std::exception & e) {
+        qt_set_error("%s", e.what());
+        qt_log(QT_LOG_ERROR, "[Qwen] %s", e.what());
+        qt_free(q);
+        return nullptr;
+    }
+
+    // One worker thread owns the long lived engine and every backend
+    // compute; the public entries enqueue and block on completion.
+    q->worker = std::thread(qt_worker, q);
+    qt_log(QT_LOG_INFO, "[Qwen] Compute worker started (max_batch=%d)", max_batch);
+
+    return q;
+}
+
+void qt_free(struct qt_context * q) {
+    if (!q) {
+        return;
+    }
+    if (q->worker.joinable()) {
+        {
+            std::lock_guard<std::mutex> lk(q->mu);
+            q->stop = true;
+        }
+        q->cv_work.notify_all();
+        q->worker.join();
+    }
+    pipeline_tts_free(&q->pt);
+    backend_release(q->bp.backend, q->bp.cpu_backend);
+    delete q;
+}
+
+void qt_voice_ref_free(struct qt_voice_ref * ref) {
+    if (!ref) {
+        return;
+    }
+    if (ref->ref_spk_emb) {
+        std::free(ref->ref_spk_emb);
+    }
+    if (ref->ref_codes) {
+        std::free(ref->ref_codes);
+    }
+    ref->ref_spk_emb   = nullptr;
+    ref->ref_spk_dim   = 0;
+    ref->ref_codes     = nullptr;
+    ref->ref_T         = 0;
+    ref->num_codebooks = 0;
+}
+
+enum qt_status qt_extract_voice_ref(struct qt_context *   q,
+                                    const float *         ref_audio_24k,
+                                    int                   ref_n_samples,
+                                    struct qt_voice_ref * out) {
+    if (out) {
+        qt_voice_ref_free(out);
+    }
+    if (!q || !ref_audio_24k || !out) {
+        qt_set_error("qt_extract_voice_ref: q, ref_audio_24k or out is NULL");
+        return QT_STATUS_INVALID_PARAMS;
+    }
+    if (ref_n_samples < TOKENIZER_HOP_LENGTH) {
+        qt_set_error("qt_extract_voice_ref: ref_audio_24k too short for RVQ encode (%d samples, need at least %d)",
+                     ref_n_samples, TOKENIZER_HOP_LENGTH);
+        return QT_STATUS_INVALID_PARAMS;
+    }
+
+    const std::string & mt = q->pt.model_type;
+    if (mt != "base") {
+        qt_set_error("qt_extract_voice_ref: voice references are only valid for base models (loaded: %s)", mt.c_str());
+        return QT_STATUS_MODE_INVALID;
+    }
+    if (!q->pt.has_speaker_encoder) {
+        qt_set_error("qt_extract_voice_ref: loaded base model has no speaker encoder");
+        return QT_STATUS_GENERATE_FAILED;
+    }
+    if (q->pt.num_code_groups <= 0) {
+        qt_set_error("qt_extract_voice_ref: invalid codebook count %d", q->pt.num_code_groups);
+        return QT_STATUS_GENERATE_FAILED;
+    }
+
+    // Enqueue and block until the worker completes the extraction. The
+    // worker is the only thread that touches the backend, so the
+    // extraction lands between two engine frames. qt_last_error is
+    // thread local: replay the worker side message into this caller's
+    // slot so the errno style contract holds across the thread hop.
+    RefJob job;
+    job.audio     = ref_audio_24k;
+    job.n_samples = ref_n_samples;
+    job.out       = out;
+    job.status    = QT_STATUS_OK;
+    job.done      = false;
+    {
+        std::lock_guard<std::mutex> lk(q->mu);
+        q->ref_queue.push_back(&job);
+    }
+    q->cv_work.notify_all();
+    {
+        std::unique_lock<std::mutex> lk(q->mu);
+        q->cv_done.wait(lk, [&] { return job.done; });
+    }
+    if (job.status != QT_STATUS_OK && !job.error.empty()) {
+        qt_set_error("%s", job.error.c_str());
+    }
+    return job.status;
+}
+
+// A language the synthesis speaks: auto, or a name of the codec table in
+// any case, as the prompt builder looks it up.
+static bool qt_language_known(const struct qt_context * q, const char * lang) {
+    std::string name = lang;
+    for (char & c : name) {
+        c = (char) std::tolower((unsigned char) c);
+    }
+    if (name == "auto") {
+        return true;
+    }
+    for (const LanguageEntry & e : q->pt.languages) {
+        if (e.name == name) {
+            return true;
+        }
+    }
+    return false;
+}
+
+enum qt_status qt_synthesize(struct qt_context * q, const struct qt_tts_params * params, struct qt_audio * out) {
+    if (!q || !params) {
+        qt_set_error("qt_synthesize: q or params is NULL");
+        if (out) {
+            qt_audio_free(out);
+        }
+        return QT_STATUS_INVALID_PARAMS;
+    }
+    // Streaming mode (on_chunk non NULL) emits through the callback and
+    // leaves out unused, so out=NULL is valid there. Buffered mode
+    // requires out to receive the synthesised waveform.
+    if (!params->on_chunk && !out) {
+        qt_set_error("qt_synthesize: out is NULL in buffered mode");
+        return QT_STATUS_INVALID_PARAMS;
+    }
+    if (params->abi_version > QT_ABI_VERSION || params->abi_version < QT_ABI_MIN_VERSION) {
+        qt_set_error("qt_synthesize: params->abi_version %d outside the supported range [%d, %d]", params->abi_version,
+                     QT_ABI_MIN_VERSION, QT_ABI_VERSION);
+        if (out) {
+            qt_audio_free(out);
+        }
+        return QT_STATUS_INVALID_PARAMS;
+    }
+
+    if (!params->text || !params->text[0]) {
+        qt_set_error("qt_synthesize: params->text is NULL or empty");
+        if (out) {
+            qt_audio_free(out);
+        }
+        return QT_STATUS_INVALID_PARAMS;
+    }
+    if (params->lang && !qt_language_known(q, params->lang)) {
+        qt_set_error("qt_synthesize: unknown language '%s'", params->lang);
+        if (out) {
+            qt_audio_free(out);
+        }
+        return QT_STATUS_INVALID_PARAMS;
+    }
+
+    // Mode validation. Mirrors the upstream Python which raises
+    // ValueError when generate_voice_design is called on a non
+    // voice_design model and the same shape applies to
+    // generate_custom_voice. Explicit and KISS, so the caller never
+    // gets a silently wrong synthesis. Messages preserved verbatim
+    // from the previous CLI-side checks.
+    const std::string & mt = q->pt.model_type;
+    if (params->speaker && mt != "custom_voice") {
+        qt_set_error("--speaker is only valid for custom_voice models (loaded: %s)", mt.c_str());
+        if (out) {
+            qt_audio_free(out);
+        }
+        return QT_STATUS_MODE_INVALID;
+    }
+    if (params->instruct && mt == "base") {
+        qt_set_error("--instruct is not supported for base models");
+        if (out) {
+            qt_audio_free(out);
+        }
+        return QT_STATUS_MODE_INVALID;
+    }
+    if (mt == "custom_voice" && !params->speaker) {
+        qt_set_error("custom_voice models require --speaker");
+        if (out) {
+            qt_audio_free(out);
+        }
+        return QT_STATUS_MODE_INVALID;
+    }
+    if (mt == "voice_design" && (!params->instruct || params->instruct[0] == '\0')) {
+        qt_set_error("voice_design models require --instruct");
+        if (out) {
+            qt_audio_free(out);
+        }
+        return QT_STATUS_MODE_INVALID;
+    }
+    const bool has_lat_spk   = params->ref_spk_emb && params->ref_spk_dim > 0;
+    const bool has_lat_codes = params->ref_codes && params->ref_T > 0;
+
+    if ((params->ref_audio_24k || has_lat_spk) && mt != "base") {
+        qt_set_error("--ref-wav / --ref-spk is only valid for base models (loaded: %s)", mt.c_str());
+        if (out) {
+            qt_audio_free(out);
+        }
+        return QT_STATUS_MODE_INVALID;
+    }
+    if (params->speaker && (params->ref_audio_24k || has_lat_spk)) {
+        qt_set_error("--speaker and --ref-wav / --ref-spk are mutually exclusive");
+        if (out) {
+            qt_audio_free(out);
+        }
+        return QT_STATUS_INVALID_PARAMS;
+    }
+    if (params->ref_text && !params->ref_audio_24k && !has_lat_codes) {
+        qt_set_error("--ref-text requires --ref-wav or --ref-rvq");
+        if (out) {
+            qt_audio_free(out);
+        }
+        return QT_STATUS_INVALID_PARAMS;
+    }
+
+    // Defense in depth: the synthesis path normally reports failures
+    // via qt_status return + qt_set_error. A future load-style throw or
+    // any std::bad_alloc deep inside the GGML backend is caught here
+    // and converted to QT_STATUS_GENERATE_FAILED so an exception never
+    // crosses the extern "C" boundary.
+    try {
+        const int64_t resolved_seed = qt_resolve_seed(params->seed);
+
+        // Enqueue and block until the worker retires the job.
+        // qt_last_error is thread local, so the engine captured the
+        // worker side message into job.error at retirement; replay it
+        // into this caller's slot so the errno style contract holds
+        // across the thread hop.
+        TtsJob job;
+        job.params        = params;
+        job.resolved_seed = resolved_seed;
+        job.out           = out;
+        job.status        = QT_STATUS_OK;
+        job.done          = false;
+        {
+            std::lock_guard<std::mutex> lk(q->mu);
+            q->queue.push_back(&job);
+        }
+        q->cv_work.notify_all();
+        {
+            std::unique_lock<std::mutex> lk(q->mu);
+            q->cv_done.wait(lk, [&] { return job.done; });
+        }
+        if (job.status != QT_STATUS_OK && !job.error.empty()) {
+            qt_set_error("%s", job.error.c_str());
+        }
+        return job.status;
+    } catch (const std::exception & e) {
+        qt_set_error("%s", e.what());
+        qt_log(QT_LOG_ERROR, "[Qwen] %s", e.what());
+        if (out) {
+            qt_audio_free(out);
+        }
+        return QT_STATUS_GENERATE_FAILED;
+    }
+}
+
+int qt_duration_sec_to_tokens(const struct qt_context * q, float duration_sec) {
+    if (!q) {
+        qt_set_error("qt_duration_sec_to_tokens: q is NULL");
+        qt_log(QT_LOG_ERROR, "[Qwen] qt_duration_sec_to_tokens requires a valid handle");
+        return 1;
+    }
+    return pipeline_tts_duration_sec_to_tokens(&q->pt, duration_sec);
+}
+
+int qt_n_speakers(const struct qt_context * q) {
+    if (!q) {
+        qt_set_error("qt_n_speakers: q is NULL");
+        return 0;
+    }
+    return (int) q->pt.speakers.size();
+}
+
+const char * qt_speaker_name(const struct qt_context * q, int i) {
+    if (!q || i < 0 || i >= (int) q->pt.speakers.size()) {
+        return NULL;
+    }
+    return q->pt.speakers[(size_t) i].name.c_str();
+}
+
+int qt_n_languages(const struct qt_context * q) {
+    if (!q) {
+        qt_set_error("qt_n_languages: q is NULL");
+        return 0;
+    }
+    return (int) q->pt.languages.size();
+}
+
+const char * qt_language_name(const struct qt_context * q, int i) {
+    if (!q || i < 0 || i >= (int) q->pt.languages.size()) {
+        return NULL;
+    }
+    return q->pt.languages[(size_t) i].name.c_str();
+}
+
+const char * qt_model_type(const struct qt_context * q) {
+    if (!q) {
+        qt_set_error("qt_model_type: q is NULL");
+        return NULL;
+    }
+    return q->pt.model_type.c_str();
+}
+
+}  // extern "C"

@@ -1,0 +1,14 @@
+[
+  {
+    "repository": "https://github.com/ServeurpersoCom/qwentts.cpp",
+    "revision": "51512f129a7419567f4b8abfb06801451789b8f1",
+    "license": "MIT",
+    "scope": "vendor/qwentts"
+  },
+  {
+    "repository": "https://github.com/ServeurpersoCom/ggml",
+    "revision": "2eddaf94a8cdbbf1c30017d28313cd661a9da543",
+    "license": "MIT",
+    "scope": "vendor/ggml"
+  }
+]

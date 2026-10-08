@@ -1,0 +1,19 @@
+{
+  "dataset": "AISHELL-1",
+  "license": "Apache-2.0",
+  "official_source": "https://www.openslr.org/33/",
+  "repository": "shenyunhang/AISHELL-1",
+  "revision": "2724409d538167445e43ebf846990319f12a1cbf",
+  "sample": {
+    "id": "BAC009S0764W0282",
+    "speaker": "S0764",
+    "speaker_info": [
+      "F"
+    ],
+    "audio": "audio/BAC009S0764W0282.wav",
+    "reference": "满足  数据  中心  和  物  联网  细分  市场  的  用户  需求",
+    "duration_seconds": 5.9339375,
+    "sha256": "14d87f4519f345bca02eb533fdef66b815d8c486da133939094b57b2622e8fa2",
+    "source_path": "data_aishell/wav/test/S0764/BAC009S0764W0282.wav"
+  }
+}

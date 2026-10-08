@@ -1,0 +1,719 @@
+[
+  {
+    "path": "vendor/ggml/.editorconfig",
+    "sha256": "9e07da486909ff67483a415e0f08b9b6b6a7f81dc5ff7ec65d6b88cd7dda4947"
+  },
+  {
+    "path": "vendor/ggml/.gitignore",
+    "sha256": "81231a7aaaad30281f2c13bafb1ce0fff9c5db69e2db46b6d7079b8e400ddbda"
+  },
+  {
+    "path": "vendor/ggml/.gitmodules",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "vendor/ggml/.pi/SYSTEM.md",
+    "sha256": "6fadc13079d91c7a6a6a9194682a4c0f3ac95c8f4e549e1f98c180e390278870"
+  },
+  {
+    "path": "vendor/ggml/.pi/gg/SYSTEM.md",
+    "sha256": "6fadc13079d91c7a6a6a9194682a4c0f3ac95c8f4e549e1f98c180e390278870"
+  },
+  {
+    "path": "vendor/ggml/AUTHORS",
+    "sha256": "922076fa7d30acba9058abe144b9fe22815d26ac2ec3241e02977a20dd5df218"
+  },
+  {
+    "path": "vendor/ggml/CMakeLists.txt",
+    "sha256": "c1d1d55416664981ea61e33b28a0dfdd36064659f15661d3a500b0de98d59ce4"
+  },
+  {
+    "path": "vendor/ggml/CONTRIBUTING.md",
+    "sha256": "3edbcee3d3d331de430f5fdb6cb901657d2fc6ab8db0ac626a1930aa455634a1"
+  },
+  {
+    "path": "vendor/ggml/LICENSE",
+    "sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d"
+  },
+  {
+    "path": "vendor/ggml/README.md",
+    "sha256": "359c498c79a326f621323e44fd3d3470a1ec635b0031206f35ad5e85a4b830c7"
+  },
+  {
+    "path": "vendor/ggml/ci/run.sh",
+    "sha256": "86479aeaae535b2732efbc7a45c4a4a855db65e11d70121571595273b70ae22c"
+  },
+  {
+    "path": "vendor/ggml/cmake/FindNCCL.cmake",
+    "sha256": "496ad9fbb75ce307f8142ed2dc8fa1ea1baaaef70e51b8d0b153ebd191b650f8"
+  },
+  {
+    "path": "vendor/ggml/cmake/GitVars.cmake",
+    "sha256": "411507be4e991f2afc0007905a95bbf848176a282189d0e27d7df1d48974290d"
+  },
+  {
+    "path": "vendor/ggml/cmake/common.cmake",
+    "sha256": "2294619f8cd3d2dcdb95d1817e19c33f9d9449b59b1278f66be72fb600a4b53f"
+  },
+  {
+    "path": "vendor/ggml/cmake/ggml-config.cmake.in",
+    "sha256": "021c2a163b30e5c4b2130540fbd76f9f0d6a61b756ccc33c2ed9a48936181264"
+  },
+  {
+    "path": "vendor/ggml/ggml.pc.in",
+    "sha256": "4df038e6d2f345fb8a930cb76014fd6a9fdeb793a6fa3593f436fc29e0589eee"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-alloc.h",
+    "sha256": "d114067f9099c4a0e2bbc0625c676d4894d9cf0ea27168ee072c7de0e71bb51d"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-backend.h",
+    "sha256": "5791edae1fb7622027621d15bc7a160198bd3b75ed8f96d06cb7b85e2b873756"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-blas.h",
+    "sha256": "e76cb8594dc9866d99e7d63191b9fff6ab8b50244b4a28ce3af0f962964a6b5b"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-cann.h",
+    "sha256": "2cdb134f27fe5c4ec19d52f1eb58f5355aa42b8f54bf385f0e487501c5df7362"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-cpp.h",
+    "sha256": "bc15ba002c68685df23faae42df0d2b3d58032011f88b649021ab92485862c72"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-cpu.h",
+    "sha256": "316279e004cdeb8e6ef78599acb602bf79a8abdf897fed9fd1914808c1518c6e"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-cuda.h",
+    "sha256": "9cbfcea49f6da4d07f41dc22fa8dbf870825faaa2a68e34e65fe30ea6c41e042"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-et.h",
+    "sha256": "33118c0642b8059a99ea930fd4e4a045e78ccb41760b173ede221f1297c35977"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-hexagon.h",
+    "sha256": "b2c12bac390f14707b16bdd27c8c75ce4f075ed509c729ee28fd4f03b17e7375"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-metal.h",
+    "sha256": "322f36cd30f3e9e7aad7b5b9bc63078012fd0b7706ac4e24f5721b604f3d8980"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-opencl.h",
+    "sha256": "8e443e1aa9c8bc6e0cf116c4cc3f42f4858938fa15e65b06bc07b26686e1233a"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-openvino.h",
+    "sha256": "c2e3f301e28ad815b4285888aad6130808a77e6acb4e8b558de63a648cf9743e"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-opt.h",
+    "sha256": "3586de1bc8a934b5c72339e2b6937b0641e8f149b512231e666f67de0736eea2"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-rpc.h",
+    "sha256": "196d2a7434f0abdb01f13c5360e0b118b9f2d66c6452e3a7a844fbecc890205c"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-sycl.h",
+    "sha256": "728e4f15d0853d63feb95dd596821c750181c26995fff57fe035e964e70fd85f"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-virtgpu.h",
+    "sha256": "ed231e7db3f0f58b84073f5ee67f9ec9d63046d1a7ed091c36a6cfe9f685a463"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-vulkan.h",
+    "sha256": "7eae5dad2cc7bb4d3eca828539f441816d5fd59fdc7b224d49aa229fc7b7248c"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-webgpu.h",
+    "sha256": "a91d855313a9e85e75ba597ff869a267247dea936a2c0faef03aeb7f1ea6e79c"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-zdnn.h",
+    "sha256": "13e42214e6743abeb250b1ec9aa4be386a9f778d644001dbbb51e3f778bd84a9"
+  },
+  {
+    "path": "vendor/ggml/include/ggml-zendnn.h",
+    "sha256": "2cb034b842438281616ce647232d922fb224450323f0d422d2af567c334aa8ff"
+  },
+  {
+    "path": "vendor/ggml/include/ggml.h",
+    "sha256": "12ee71f99db7db9b353bc02b1fbb57c344ee17c01ac5fb7952b41a637a747ea9"
+  },
+  {
+    "path": "vendor/ggml/include/gguf.h",
+    "sha256": "e56714aab702e5ce62ee587a409643c08f7e93e8fbb77f48ef7cc85075f96fa4"
+  },
+  {
+    "path": "vendor/ggml/requirements.txt",
+    "sha256": "dbecad0ffdf9c66c13d4a1ba2479b8c6c32e2792f75a27f462eb2320f2fc2c06"
+  },
+  {
+    "path": "vendor/ggml/src/CMakeLists.txt",
+    "sha256": "38ddf053a1adfc14bb84b7722e3c4ec01909694f7e51e32013f36e7a324fa4f0"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-alloc.c",
+    "sha256": "9664bda3e9c4223f5c94ebfeb3c0381f0065a5091ddae707c09a800f7e419a39"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-backend-dl.cpp",
+    "sha256": "acd76df8b83bcdef6807bc7b0520f57b379d61b4ff1027c04aa4d140d16ad07f"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-backend-dl.h",
+    "sha256": "225bd83a197c4e8b5f985717176824d1144e2b74a79f04838f51b84115c14dc5"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-backend-impl.h",
+    "sha256": "4e861c8e23d3d7b0d99d8e0836e68564af58f8597d75d7bbb732857d7a632fa7"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-backend-meta.cpp",
+    "sha256": "f459c44d86a19a7c7be01663f2bcaf64f6b9dc486f28b10e8eba13328c82299f"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-backend-reg.cpp",
+    "sha256": "0f63c69ad083e0744872f57d59d049b069283303f5bbc646222907d779afe4d1"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-backend.cpp",
+    "sha256": "cdb79f2937aa147084a76f949adc0eb760ad1883e0ccc015bb4e0f599c89bd5f"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-common.h",
+    "sha256": "0061131b615c5721fc88a78feeb22c1f8c450f1c2646a317d80796a653bf595c"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/CMakeLists.txt",
+    "sha256": "158a405edbd0855602fd22ae14df9bc252fd10e5219cf77d4e21c9872ae2ef75"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/amx/amx.cpp",
+    "sha256": "0d1641ce16917e3f6260ff74523b158bb823599bbf76cbf9aedcc9d365de84d4"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/amx/amx.h",
+    "sha256": "9d098ceee6a8114d4a660ff269064a27aa25b8a4f205d1e6984d17bec5104f0d"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/amx/common.h",
+    "sha256": "c694f6bb066a820b717f986914b0d112dca0d8d3a1e239e958fce30c864751c3"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/amx/mmq.cpp",
+    "sha256": "0f95c80e0300eca3b3a3df07272042fee708425e19cd5f2c4cba7b253b26d226"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/amx/mmq.h",
+    "sha256": "bd33d0713b12daf9eedea1619dd715619baaa36b98c44ec754d532909d80933a"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/arch/arm/cpu-feats.cpp",
+    "sha256": "a8691f7fb8f41f707d68566a168196b5ff7743090b0b486a0be998df6476c511"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/arch/arm/quants.c",
+    "sha256": "a4d3cfdea82b73c0086f63ad9f698e536117a1c25f2f266fc9cd6e7f51deab1b"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/arch/arm/repack.cpp",
+    "sha256": "6a96da05d38f693bcf259ef063c0e4adf762c006a92252fd83133f7cf626b76d"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/arch/loongarch/quants.c",
+    "sha256": "6adfe8a7ef75113fff1eba93e7fa52affd156f5f6f9f0adb2c53557909b02d4c"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/arch/powerpc/cpu-feats.cpp",
+    "sha256": "cbee31db1ec3b93278f6b4724d26fa07c8641359c25a40ffc464617632859c47"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/arch/powerpc/quants.c",
+    "sha256": "5a7d65d4cae3cb46adac6cb151349e1a18d571f15306bc46bc9a65eddc8f1c2d"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/arch/riscv/cpu-feats.cpp",
+    "sha256": "6187bf810718647068814020407d25ecb89ccd96d40135a064029e5c1f3cd60f"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/arch/riscv/quants.c",
+    "sha256": "acf089ff8b39c1eeb7cb8f67df8ab49055a5b82a530b9c4871ea7ab732cf390f"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/arch/riscv/repack.cpp",
+    "sha256": "57b1362562ec0dfe8475e49a639783468da3ddbf7a5f009adcd01a7e4ed61fbf"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/arch/s390/cpu-feats.cpp",
+    "sha256": "177c1d60be3487bc8635180fd43c2ed2be456a81c6260e6a1c30f2c16c7df3ea"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/arch/s390/quants.c",
+    "sha256": "64ff35b604fac47f7b41b65c6cef61ee5d704fdee738142c1eefb10050edc157"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/arch/s390/repack.cpp",
+    "sha256": "eae0bb63cf209dc9e9e695a291f0dfbed92e0ddecbc05d33676d35e1d12efed9"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/arch/wasm/quants.c",
+    "sha256": "defc3f28aa882d52a390d4573f5308ddc3aa95c5f487bbdaf311e7b0874493b3"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/arch/x86/cpu-feats.cpp",
+    "sha256": "b0f6aaaeb0b12a4f3e15ceec14d0c2031633f91e864a6c15954a001d6390f6d4"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/arch/x86/quants.c",
+    "sha256": "3c489fdc77e3ab484a5f188bff9c60c0e9483c951ed65c1a562a04c249d5628e"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/arch/x86/repack.cpp",
+    "sha256": "c69735f83caf854172cac78eed2cbc022ef81c077e5f6aca55a49d3404a02331"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/arch-fallback.h",
+    "sha256": "021e6efbd5b67194b291303b42e847a6426296e1f244b88cf8f0ab2003c5e271"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/binary-ops.cpp",
+    "sha256": "2df261aadce36a20f5e3bf6961d4ca27b8c2d461afc41488361ee6ad09c1730d"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/binary-ops.h",
+    "sha256": "5915519c4e2227db28239b2a5d3b8a5f9022730cc0ddb7880b24748ee78cd1f9"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/cmake/FindSIMD.cmake",
+    "sha256": "c36807121bb1452dfb1ab39a7b366bd49f454c49b43b1df4b7c54f038c824d49"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/cmake/FindSMTIME.cmake",
+    "sha256": "81fc6290d1b2fdc30746c222fe993cc7403942ca388f9db0c5885ef568929adb"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/common.h",
+    "sha256": "db7c19747a28c819d18922aa43b91b224df3730e424e6d8a4cf4fd16bfb1db14"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/ggml-cpu-impl.h",
+    "sha256": "785a19aac84bd35671d34b1986b920baadccdf61cd8b81e787028f6ac24cae60"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/ggml-cpu.c",
+    "sha256": "cd57ec296a868e0c6e1699d6c1c036a5360e7e68d9df2639f51b7759cb295241"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/ggml-cpu.cpp",
+    "sha256": "ccf382d3fbf126b5ddb5850a0a970656fb24e00587da4003419439277c91cd01"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/hbm.cpp",
+    "sha256": "e5cf5c8327f99ccb58461d8416e27bc38da01d9bd450e48f3df69bd34a81a47c"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/hbm.h",
+    "sha256": "340c84ac6a1c83d2218a15d6d71c1efb6ba1a5517162c2fde4baa0a9204af26b"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/kleidiai/CMakeLists.txt",
+    "sha256": "305d5a47e237a5dcfba62f19e24c4fdaa68286e6397d779fef68cf06f87ad14b"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/kleidiai/kernels.cpp",
+    "sha256": "eec4fdb940204c1afcff6f84d312275c32c941e9577585c1fa9d60a6dd017ebe"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/kleidiai/kernels.h",
+    "sha256": "f205ce317c703d021f8625f6eefd822c13e8d6a4e2acdec56eaf870f9bbbb0b4"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/kleidiai/kleidiai.cpp",
+    "sha256": "6475072dcce32e21531f1a4fb68b744bc710017b391893201c051a9e80f958f2"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/kleidiai/kleidiai.h",
+    "sha256": "bea31f009d2c471a7f6cd7a0ecf31ecaf08691914305a9ef7f986740e39f0910"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/llamafile/sgemm.cpp",
+    "sha256": "8413c9a0828ddea7289aee72a32c03bd56a23ee40179ec3600f9b0589a21e338"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/llamafile/sgemm.h",
+    "sha256": "6ec12aa9244a8ffb13ae56b2e391f905b1d152ae25ff45da6a66e18daf650b3b"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/ops.cpp",
+    "sha256": "c0a0b025a001265ebd2b52135acb84b5785b6c98151cf90076344ed59f4be351"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/ops.h",
+    "sha256": "48272dac76541b88423364041333812e63a88bb99f8594a4549c62816a294170"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/quants.c",
+    "sha256": "a61f1011e49d05b5f99d352b158d5b8e36cf008294bb0db309f72bdd7f1d4e35"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/quants.h",
+    "sha256": "918d6755b3e601ec7bb83c7dbf1d73304490651ccbb4072b0d31a2b45df751da"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/repack.cpp",
+    "sha256": "5fa9f24cc2631609f40fa47a64078f77dccbe9f327711af91af671cd29b8b87d"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/repack.h",
+    "sha256": "d392cb13586c8c9177f6a0f75a75936882d09b9a70e6d989cedb3dd79f3c752a"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/simd-gemm.h",
+    "sha256": "e82a07445059ec4a4c7d8dd75a2663d459025274d817be3f83c1f5989a79208d"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/simd-mappings.h",
+    "sha256": "a936298928e4dcfc1b61fb9e99cf8a152572b413e30f38dc8e7c3211ee9cb6a0"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/spacemit/ime.cpp",
+    "sha256": "05e812d93a87970be30ec1af8a6aadba5e6f02d5835cb5e8b869109a6531c20b"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/spacemit/ime.h",
+    "sha256": "2007cbf6ea43a0d97f46e046f1449ab752ff35cc42caa09a22195dbe06656143"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/spacemit/ime1_kernels.cpp",
+    "sha256": "3158f67ab216eadeb0fedfad0d2b2806d9f018c6716658646226ddc5fec3b105"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/spacemit/ime2_kernels.cpp",
+    "sha256": "98b9f38041ead963baf59628167979d667f44c52570cb80d9340efce775fae73"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/spacemit/ime_env.cpp",
+    "sha256": "5f31bd7195f7daffe278e7394c7c84327ec6cce421a2f035b9a0ba4edfd53b2c"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/spacemit/ime_env.h",
+    "sha256": "2d8b0529166cefb919715e87ca2ed56ef6f0739a6ba008a4e98b2db9545c8295"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/spacemit/ime_kernels.h",
+    "sha256": "b6fa08ff9966173b082b0570fd444db63aa4f748556ef390fb9df8ef4fe2dbd3"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/spacemit/repack.cpp",
+    "sha256": "29a8bf365771e401c2096349bb10bf465b530f98ec21058007a979b50022395c"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/spacemit/repack.h",
+    "sha256": "70f7c5aae3b7972841bbb68e05acb84f299c08af61ea8608ab233fc432db8920"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/spacemit/rvv_kernels.cpp",
+    "sha256": "cde0a685538533b52e614485871656651f48f800babd78b37a60507138e0db5d"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/spacemit/rvv_kernels.h",
+    "sha256": "666e988d3700b733dad9a406b1575f521f75186fad942a27edd0792f2b4165e7"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/spacemit/spine_barrier.h",
+    "sha256": "ddba450200089601aac492a45d6be7881eeef02cd0a4abedf69db5c4b9dfe134"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/spacemit/spine_mem_pool.cpp",
+    "sha256": "3ca25e1b06f9aa8144d15e4382b40a1561609e65518119da876765bd6fc1aeed"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/spacemit/spine_mem_pool.h",
+    "sha256": "8f441ca61472aef8ee16f88fe0f640c188ff036e4c80bb5657b1c0a4c204d889"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/spacemit/spine_tcm.h",
+    "sha256": "8bfe1bfa04a24f88d79610e209047de81f867d12c7dce8bf16402fcb3f67b0c8"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/tiled/tiled-kernel.cpp",
+    "sha256": "8f81a18b9a210fac732ecac020b048184edfe2c5e74a5cc95c4df89e60bc8f13"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/tiled/tiled-kernel.h",
+    "sha256": "0d729f5a6b4cd1584bd181fbc882e39f64fd41bf66ac1a9c009025d2b09ff23e"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/tiled/tiled.cpp",
+    "sha256": "a5d92ce8f617696778e225de6658180649143fec3792c5cfef84170641f2d06e"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/tiled/tiled.h",
+    "sha256": "684aaa5320e20eadfc799c8ce04c52bf7c0d32b323f395de59ce469bda254a72"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/traits.cpp",
+    "sha256": "a85bd3ff50c91cb67d14221988544664dfe5975db0811b330dc4a2f385239de4"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/traits.h",
+    "sha256": "26e1b41879091a663325848aa82a4023b459fd1e688b3b0e2a9bde3e72a3a764"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/unary-ops.cpp",
+    "sha256": "e63b382766f1b8c5ded1577be9704e85cb4e9cd24584f3e1474911a40146df33"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/unary-ops.h",
+    "sha256": "280b7979055079d43bdde7790a7290bf04f75640481c59abc2364c46d6ac6d8e"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/vec.cpp",
+    "sha256": "31e43ec66a1e2920a549dd2f71e6ce474e68f2fc298c4d2942404ca327e763d1"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-cpu/vec.h",
+    "sha256": "885a50e405f20f75ea70cb7fb062934812beffc9229ddb56a003aa150163d2fa"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-feats.h",
+    "sha256": "4490179fd8c6df80fe29fc602ed7236eb828c51e9c379efb0dd510cb5cb81fec"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-impl.h",
+    "sha256": "43564db0238aebb7ed68501e346c194866b5dac218d1d37b26baff9f458c00d3"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-opt.cpp",
+    "sha256": "e35fd27856e37f3611d3bc6f17ee963be51bfe92bec96fad0a9fa2c7ebbe9c46"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-quants.c",
+    "sha256": "5574a2dccf7c07e75b143733e04a5412d3d8c819e7945f5217a7b83a2b2ff8ab"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-quants.h",
+    "sha256": "28ae5fca1f3be636b36cd6c4fa2ca74fd42d229bfbd5352eaf66f3727bb8a6da"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-threading.cpp",
+    "sha256": "13a18d885393722b7c9f42d4cf8575a4d41699926d656f78a867fa4fac9dad20"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-threading.h",
+    "sha256": "9652729043ed91482392c1aa08af5d813190d0ace2e7982d2539d28240ab8d8b"
+  },
+  {
+    "path": "vendor/ggml/src/ggml-version.h.in",
+    "sha256": "2b6f26259bfc6768229c90b127fee770f60271e74f4513d7abecb5900fa0b112"
+  },
+  {
+    "path": "vendor/ggml/src/ggml.c",
+    "sha256": "3e2c3df43e0c432a8ead90dcddad7f1a932ba9eed99caa27d472141fe66cd5c2"
+  },
+  {
+    "path": "vendor/ggml/src/ggml.cpp",
+    "sha256": "64e6b5c8d716ae8697e45481a7153540be01f721be2dc7e753aa47b36a69c753"
+  },
+  {
+    "path": "vendor/ggml/src/gguf.cpp",
+    "sha256": "7505d6a434dc740941a682fd3b476ef9bd9893ab76adf18c9969daa528bd5be5"
+  },
+  {
+    "path": "vendor/qwentts/LICENSE",
+    "sha256": "cddbecd5db98ec5bd44af3e7221b6d44c3e9fed1c92940a3be5b0080c9b86475"
+  },
+  {
+    "path": "vendor/qwentts/src/audio-io.h",
+    "sha256": "cf8af4d67bbc38ec7bd5a8df442c09735fa6a6854162c508b40079ffc5a34748"
+  },
+  {
+    "path": "vendor/qwentts/src/audio-mel.h",
+    "sha256": "141d7db899698b23b1e41c8b550eb8357487b3d31a27610bdff89d6688964bde"
+  },
+  {
+    "path": "vendor/qwentts/src/audio-resample.h",
+    "sha256": "918d17162592e8e37099859fbbd9fd3403d5a4108d5f8723baeaed3852391b9f"
+  },
+  {
+    "path": "vendor/qwentts/src/backend.h",
+    "sha256": "5adbd61a97fceee773a5c038f2672f66b70df13a750581d17ab81969ad3b02bb"
+  },
+  {
+    "path": "vendor/qwentts/src/bpe.h",
+    "sha256": "2731aae255bb95ab934835f11491429d67c9d9f12ea9f33dbdb45d6737ee2403"
+  },
+  {
+    "path": "vendor/qwentts/src/causal-trans-conv.h",
+    "sha256": "c4bd45a1cfabb3673288906255cccb4d392142a6004c194a7331a4076c329d87"
+  },
+  {
+    "path": "vendor/qwentts/src/code-predictor-forward.h",
+    "sha256": "7929705b6deda1f1ba0b1c94dc641ddc84005a2b55adab02caa8472149a4d678"
+  },
+  {
+    "path": "vendor/qwentts/src/code-predictor-graph.h",
+    "sha256": "73b4aad78a2bdaa84056bb83534804b1e0f820f5dec66c875bd1bf4706776b9a"
+  },
+  {
+    "path": "vendor/qwentts/src/code-predictor-weights.h",
+    "sha256": "d717effb131a6046c8aa515047d2fb425d48d7fd45c8e0da1c529059baa81a6c"
+  },
+  {
+    "path": "vendor/qwentts/src/codec-chunked-decode.h",
+    "sha256": "ade7bc4a620a63dbdbd0d28e80ef407ed54148f4cefeee127314a63a19a082ce"
+  },
+  {
+    "path": "vendor/qwentts/src/convnext-block.h",
+    "sha256": "e5b0d782f40cc39cd06368af70d9c8087496537b3d9a30e696cc8516d117013c"
+  },
+  {
+    "path": "vendor/qwentts/src/dac-decoder-v2.h",
+    "sha256": "6da4b2fa1e10bccb53b0c3b253cc4f1036a13099f84fc4dc877c8cd40ddf2c94"
+  },
+  {
+    "path": "vendor/qwentts/src/debug.h",
+    "sha256": "8bd005fd4e1703dbdac25c6dfbce4fbef129bf1a580f3b937c29f7edebe34cc1"
+  },
+  {
+    "path": "vendor/qwentts/src/encoder-downsample.h",
+    "sha256": "99e558484337b7d44eb2ca2c8f667aae357f9440fddb907969891535a96809b5"
+  },
+  {
+    "path": "vendor/qwentts/src/encoder-transformer.h",
+    "sha256": "56db3a0b2e9c41dec0081ddc68490fa65e32558ebf8530597f0ba2d26d589d46"
+  },
+  {
+    "path": "vendor/qwentts/src/gguf-weights.h",
+    "sha256": "88e1166f29818f9a1d4abeb8913af38d3858ac1a7f9b14ea86d4e1cd17e80bc4"
+  },
+  {
+    "path": "vendor/qwentts/src/graph-arena.h",
+    "sha256": "b8214385b0607e76328360e96017dd38ba6935815774d5ea7278c513aa176b84"
+  },
+  {
+    "path": "vendor/qwentts/src/kv-cache.h",
+    "sha256": "3770291e0f26c2b1d0109cda424aac368d4ef29ece46517079a6fcdd14dc2535"
+  },
+  {
+    "path": "vendor/qwentts/src/philox.h",
+    "sha256": "41a955e4267eba8d1c1a4b55a0b8964c4a7bd28f380faae5f981152403c81de7"
+  },
+  {
+    "path": "vendor/qwentts/src/pipeline-codec.cpp",
+    "sha256": "bc18d126e3a1021518cfc4def499d24bc3dd37faadad0a0f895f6ba518170973"
+  },
+  {
+    "path": "vendor/qwentts/src/pipeline-codec.h",
+    "sha256": "ca56530e7a0231ac501ce724bbc3f338ed46c3ec4fc19320c0b28ff9e26b5741"
+  },
+  {
+    "path": "vendor/qwentts/src/pipeline-tts.cpp",
+    "sha256": "9717bd82d42f93ea31caf17024ccc5133652e2373a5d3e42d3949fbf759690ff",
+    "upstream_sha256": "a897cca5165bc901a679819fd9594aa2617a8243cb7771572d88b8e25eb1fc85"
+  },
+  {
+    "path": "vendor/qwentts/src/pipeline-tts.h",
+    "sha256": "b8d1dded24380fccc30045c6febd0875bab7da2bb071a0c7bbc8179d7db5aa43"
+  },
+  {
+    "path": "vendor/qwentts/src/prompt-builder.h",
+    "sha256": "33a7291de48d69e285db2c605e76dce74b80828af84e4eb15ada44d713028575"
+  },
+  {
+    "path": "vendor/qwentts/src/qt-error.h",
+    "sha256": "65d244f34d2f4f5548229f109aa6bb615b85b8e3a6fa8dd16ed92f97c1a03275"
+  },
+  {
+    "path": "vendor/qwentts/src/quantizer-decode.h",
+    "sha256": "1da5eb259a786eeef3b69e07194a3a9356789ff066d2ade72c49b110ddecdffc"
+  },
+  {
+    "path": "vendor/qwentts/src/quantizer-encode.h",
+    "sha256": "9f2a98bcd9fc1a8984f25771ebaf7acb1dc1075dda6dae72d5da8391d30fe651"
+  },
+  {
+    "path": "vendor/qwentts/src/qwen.cpp",
+    "sha256": "e3a3192875c56db94f1613c762dfc3ec6616808aa4fe4886c1861bf4b3773965"
+  },
+  {
+    "path": "vendor/qwentts/src/qwen.h",
+    "sha256": "c2b83bb0a5d98e7e9e5a09903c7f0263bdafe9bd45bf25d8b3d130ad99c777a0"
+  },
+  {
+    "path": "vendor/qwentts/src/rvq-file.h",
+    "sha256": "e35790e032503e1a7586887dcf3152f505292fc692aa049c2044c9eca1a5cfe7"
+  },
+  {
+    "path": "vendor/qwentts/src/sampling-defaults.h",
+    "sha256": "29815edb43e42b2dfaaf02b195c42ef6848828f3e77332ef11cb6c2ca7390c0d"
+  },
+  {
+    "path": "vendor/qwentts/src/sampling-graph.h",
+    "sha256": "f3d346cecba9d177aa397d538e7e5bb4b359ccf461b86d4cf74d2f8a4f005385"
+  },
+  {
+    "path": "vendor/qwentts/src/sampling.h",
+    "sha256": "9812a8b428efffcfe3d832409f3eae092cb3be90bfeefbf141f75df0320e2241"
+  },
+  {
+    "path": "vendor/qwentts/src/seanet-encoder.h",
+    "sha256": "c4021d766ac37d62821d37a8fd3adace0832e23ada165c033a4bf1197a6e7fde"
+  },
+  {
+    "path": "vendor/qwentts/src/speaker-encoder-extract.h",
+    "sha256": "f5f6d345a00e37a57b7693b5104685d1a5356250efefb1723f354aca6a49f3c4"
+  },
+  {
+    "path": "vendor/qwentts/src/speaker-encoder-forward.h",
+    "sha256": "4bbd7dd0d635e39c18ee62e9d40ef94562c9174d920ede3675a8130667d51ddf"
+  },
+  {
+    "path": "vendor/qwentts/src/speaker-encoder-weights.h",
+    "sha256": "7ea4cc37251f93bafbcc78ed84e773638eba74119de88360aa35751dbd525858"
+  },
+  {
+    "path": "vendor/qwentts/src/talker-decode-graph.h",
+    "sha256": "e6f6ddee6c3d8107434b8a6392638fb75ffdd1ec7fd1859aeda7508033d518a1"
+  },
+  {
+    "path": "vendor/qwentts/src/talker-forward.h",
+    "sha256": "e4d3567d0cc13246b3cdea58491c5e35a0569e30c0796c9e0950455ad6c7c22a"
+  },
+  {
+    "path": "vendor/qwentts/src/talker-weights.h",
+    "sha256": "4e45ce0c2510aee2d8df8125080954813eeb69edcf056a3731dbfc80dffc590f"
+  },
+  {
+    "path": "vendor/qwentts/src/timer.h",
+    "sha256": "8ef2b56f6977c5c93c359917e82572ce81b9cc6d5cb5884780710d160867ac97"
+  },
+  {
+    "path": "vendor/qwentts/src/tokenizer-transformer.h",
+    "sha256": "0b155b4ae76c6013d2430ac8538f516a21be1335948d21ffc0f011002966aae5"
+  },
+  {
+    "path": "vendor/qwentts/src/tts-server.h",
+    "sha256": "7d313cf8ac2d127f926c5bf75da5377e44b7674a034ea436d2cd3b896accb62d"
+  },
+  {
+    "path": "vendor/qwentts/src/utf8.h",
+    "sha256": "b77d58b031d3cfbadf3bd7148fd6280e46f165b2a8d66295a20690ba834cf712"
+  },
+  {
+    "path": "vendor/qwentts/src/wav.h",
+    "sha256": "4c3bc6fe96f29a197b0d2c97a45a307aa4fd4a17c45a5ee14e2a98d03fa518f9"
+  },
+  {
+    "path": "vendor/qwentts/src/weight-ctx.h",
+    "sha256": "84bdf3a1b3353984e7c05752490a02af88e5cc39b506fc5b417b672207c78e87"
+  }
+]

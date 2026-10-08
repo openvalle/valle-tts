@@ -1,0 +1,61 @@
+name: macos TTS
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+      VALLE_TTS_TEST_CACHE: models
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: dtolnay/rust-toolchain@1.99.0
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2.9.2
+        with:
+          key: macos-rust-1.99
+          cache-workspace-crates: true
+      - name: Verify pinned native sources
+        run: python scripts/check_vendor.py
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Lint
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Check optional model boundary
+        run: cargo check --locked --no-default-features --lib
+      - name: Permissive dependency licenses
+        run: python scripts/check_licenses.py
+      - name: Unit and API tests
+        run: cargo test --locked
+      - name: Restore pinned platform-independent model weights
+        uses: actions/cache@v6.1.0
+        with:
+          path: models
+          enableCrossOsArchive: true
+          key: qwen3-tts-models-v1-${{ hashFiles('models.json') }}
+      - name: Download or verify Qwen3-TTS Q8 weights
+        run: cargo run --locked -- download --cache-dir models
+      - name: Real bilingual cloning, streaming and cancellation
+        run: cargo test --locked --test real_models -- --ignored --nocapture
+      - name: Upload generated WAV files and validation receipt
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: macos-qwen3-tts-results
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,0 +1,20 @@
+--- a/src/pipeline-tts.cpp
++++ b/src/pipeline-tts.cpp
+@@ -2,6 +2,8 @@
+ // onto the same shared backend, parse all metadata into typed structs,
+ // and provide a structured load-time summary for --load-only mode.
+ 
++// Modified by Valle contributors: a generation budget without EOS is an error,
++// so callers cannot accidentally commit a silently truncated WAV.
+ #include "pipeline-tts.h"
+ 
+ #include "audio-io.h"
+@@ -1318,6 +1320,8 @@
+                     }
+                     if (s.step >= p->max_new_tokens) {
+                         s.finished = true;
++                        s.fin_status = QT_STATUS_GENERATE_FAILED;
++                        qt_set_error("generation budget exhausted before EOS; increase max_tokens or reduce max_chunk_chars");
+                     }
+                 }
+             }

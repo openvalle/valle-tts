@@ -1,0 +1,19 @@
+{
+  "repository": "https://github.com/alan890104/qwen3-asr-rs",
+  "revision": "c5ef09646af6278d2ba8b8ceaf543ffb32d1a5dc",
+  "license": "MIT",
+  "files": [
+    {
+      "file": "sample1.wav",
+      "bytes": 108844,
+      "sha256": "6208727ac0b9de7aa1b2df8214f39bccb1e511298c55f4ca8d5f3c4abf8df257",
+      "text": null
+    },
+    {
+      "file": "sample1.txt",
+      "bytes": 45,
+      "sha256": "b47cc0f104b62d4c7c30bcd68fd8e67613e287dc4ad8c310ef10cbadea9c4380",
+      "text": "The quick brown fox jumps over the lazy dog.\n"
+    }
+  ]
+}
