@@ -4,22 +4,6 @@
     "sha256": "9e07da486909ff67483a415e0f08b9b6b6a7f81dc5ff7ec65d6b88cd7dda4947"
   },
   {
-    "path": "vendor/ggml/.gitignore",
-    "sha256": "81231a7aaaad30281f2c13bafb1ce0fff9c5db69e2db46b6d7079b8e400ddbda"
-  },
-  {
-    "path": "vendor/ggml/.gitmodules",
-    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  },
-  {
-    "path": "vendor/ggml/.pi/SYSTEM.md",
-    "sha256": "6fadc13079d91c7a6a6a9194682a4c0f3ac95c8f4e549e1f98c180e390278870"
-  },
-  {
-    "path": "vendor/ggml/.pi/gg/SYSTEM.md",
-    "sha256": "6fadc13079d91c7a6a6a9194682a4c0f3ac95c8f4e549e1f98c180e390278870"
-  },
-  {
     "path": "vendor/ggml/AUTHORS",
     "sha256": "922076fa7d30acba9058abe144b9fe22815d26ac2ec3241e02977a20dd5df218"
   },
@@ -28,20 +12,12 @@
     "sha256": "c1d1d55416664981ea61e33b28a0dfdd36064659f15661d3a500b0de98d59ce4"
   },
   {
-    "path": "vendor/ggml/CONTRIBUTING.md",
-    "sha256": "3edbcee3d3d331de430f5fdb6cb901657d2fc6ab8db0ac626a1930aa455634a1"
-  },
-  {
     "path": "vendor/ggml/LICENSE",
     "sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d"
   },
   {
     "path": "vendor/ggml/README.md",
     "sha256": "359c498c79a326f621323e44fd3d3470a1ec635b0031206f35ad5e85a4b830c7"
-  },
-  {
-    "path": "vendor/ggml/ci/run.sh",
-    "sha256": "86479aeaae535b2732efbc7a45c4a4a855db65e11d70121571595273b70ae22c"
   },
   {
     "path": "vendor/ggml/cmake/FindNCCL.cmake",
