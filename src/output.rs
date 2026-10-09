@@ -11,6 +11,11 @@ pub struct WavOutput {
     samples: u64,
 }
 impl WavOutput {
+    /// Create a transactional mono PCM16 WAV writer at the requested sample rate.
+    /// The parent directory must exist. An existing destination is replaced only by [`Self::finish`].
+    ///
+    /// # Errors
+    /// Rejects zero sample rate and propagates temporary-file/WAV creation failures.
     pub fn new(path: impl AsRef<Path>, sample_rate: u32) -> Result<Self> {
         ensure!(sample_rate > 0, "sample rate is zero");
         let path = path.as_ref();
@@ -37,6 +42,11 @@ impl WavOutput {
             samples: 0,
         })
     }
+    /// Append one chunk, clipping finite samples to `[-1, 1]` for PCM16 output.
+    ///
+    /// # Errors
+    /// Rejects changed sample rates, non-finite samples and RIFF size overflow;
+    /// propagates writes to the temporary WAV.
     pub fn write(&mut self, chunk: AudioChunk) -> Result<()> {
         ensure!(
             chunk.sample_rate == self.sample_rate,
@@ -61,6 +71,11 @@ impl WavOutput {
         self.samples = next;
         Ok(())
     }
+    /// Finalize, synchronize and atomically replace the destination with the WAV.
+    /// Dropping without finishing removes temporary output.
+    ///
+    /// # Errors
+    /// Rejects empty output and propagates finalization, sync and rename failures.
     pub fn finish(mut self) -> Result<()> {
         ensure!(self.samples > 0, "model produced no audio");
         self.writer.take().expect("writer available").finalize()?;

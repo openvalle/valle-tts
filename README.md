@@ -61,7 +61,16 @@ quality is not assumed equivalent to Q8. These are download sizes, not peak RAM.
 
 ## Library and streaming
 
-```rust,ignore
+```toml
+[dependencies]
+valle-tts = { version = "0.1.0", default-features = false, features = ["qwen3", "download"] }
+```
+
+Model weights are downloaded separately and are not embedded in the crate.
+
+```rust,no_run
+# #[cfg(feature = "qwen3")]
+# fn main() -> anyhow::Result<()> {
 use valle_tts::{ReferenceVoice, SynthesisOptions, TtsEngine, WavOutput};
 use valle_tts::models::qwen3::Qwen3;
 
@@ -73,6 +82,10 @@ let mut wav = WavOutput::new("output.wav", 24000)?;
 let summary = engine.synthesize("qwen3-tts-0.6b-base-q8", "Hello, 你好！", &voice,
     &SynthesisOptions::default(), &mut |chunk| wav.write(chunk))?;
 wav.finish()?;
+# Ok(())
+# }
+# #[cfg(not(feature = "qwen3"))]
+# fn main() {}
 ```
 
 Output is streamed mono PCM at 24 kHz. A fallible `Send` sink receives owned
@@ -98,10 +111,19 @@ it before EOS fails instead of silently committing truncated audio. WAV output
 uses a same-directory temporary file and replaces the destination only after
 successful generation. Standard RIFF's 4 GiB limit still applies.
 
+### Features
+
+- `qwen3`: the built-in Qwen3 CPU backend.
+- `download`: revision-pinned model downloads with size and SHA-256 checks.
+- `cli`: the command-line application, including `qwen3` and `download`.
+
+All three are enabled by default. The model-independent core can be used with
+`default-features = false` and no additional features.
+
 ## Validation
 
-Three independent workflows run in parallel: [Linux](.github/workflows/ci-linux.yml),
-[Windows](.github/workflows/ci-windows.yml), [macOS](.github/workflows/ci-macos.yml).
+Three independent workflows run in parallel: [Linux](https://github.com/openvalle/valle-tts/actions/workflows/ci-linux.yml),
+[Windows](https://github.com/openvalle/valle-tts/actions/workflows/ci-windows.yml), [macOS](https://github.com/openvalle/valle-tts/actions/workflows/ci-macos.yml).
 Each runs formatting, Clippy, license/provenance checks, optional-backend checks,
 API tests and **explicit real-model inference**; a skipped model test is not a pass.
 Rust/native build caches are platform-specific. Verified model weights use a
@@ -126,7 +148,61 @@ remains useful after CI passes.
 ## Licenses
 
 New Valle code is Apache-2.0. Copied native sources remain MIT, and model weights
-are Apache-2.0. See [THIRD_PARTY.md](THIRD_PARTY.md) for exact source revisions,
+are Apache-2.0. See [THIRD_PARTY.md](https://github.com/openvalle/valle-tts/blob/main/THIRD_PARTY.md) for exact source revisions,
 copied/modified files, fixture origins and preserved notices. No GPL-family
 code is used in the enabled implementation. The initial implementation research
-is in [docs/IMPLEMENTATION_RESEARCH.md](docs/IMPLEMENTATION_RESEARCH.md).
+is in [docs/IMPLEMENTATION_RESEARCH.md](https://github.com/openvalle/valle-tts/blob/main/docs/IMPLEMENTATION_RESEARCH.md).
+
+## Crate development and release checks
+
+The crate targets Rust 1.99+ and edition 2024. Run formatting, Clippy, unit/API
+tests, documentation and packaging checks before a release. Public APIs must
+document units, callback execution, resource ownership and failure conditions;
+missing public documentation and broken Rustdoc links fail validation. The README
+provides the crate-level documentation, and its Rust example is compiled as a
+documentation test.
+Changes to native sources must retain upstream notices, source hashes and
+reproducible patches. The permissive-license policy in THIRD_PARTY.md applies.
+
+The default features are `qwen3`, `download` and `cli`. Library consumers can use
+`default-features = false` with `features = ["qwen3"]` for local model directories,
+or add `download` for the verified cache. No-default-features builds expose the
+model-independent core. The `cli` feature enables the backend and downloader;
+Clap is excluded from builds that omit `cli`. TTS's `qwen3` feature additionally needs CMake
+and a C++17 compiler. Disabling it builds the TTS core without native compilation.
+
+Each independent Windows/Linux/macOS workflow checks supported feature
+combinations, warning-free API documentation and `cargo publish --dry-run`,
+which extracts and builds the exact crate archive without uploading it.
+Packaging explicitly includes source, model catalogs, test fixtures and third
+party notices; it also includes its complete pinned native build sources.
+Model weights, generated audio, local artifacts and build caches are excluded.
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo test --locked
+cargo test --locked --no-default-features
+cargo doc --locked --no-default-features --features qwen3,download --no-deps --lib
+cargo package --locked --list
+cargo publish --locked --dry-run
+```
+
+The initial API is version 0.1.0. Breaking public API changes require a minor
+version increment before 1.0; compatible fixes use a patch increment. Document
+changes in the release notes and tag each published version. The minimum Rust
+version is declared in `Cargo.toml` and matches the toolchain used in CI.
+
+Before publishing, require all three platform workflows (including the explicit
+real-model tests) to pass, review the archive's contents and licenses, and confirm
+the version is new on crates.io. A dry run does not reserve the crate name or
+verify the publisher account's ownership. Actual publication is a separate
+release action using the authorized crates.io owner account.
+
+## 0.1.0 release notes
+
+- Initial Rust library and CLI with pluggable TTS backends.
+- Qwen3-TTS 0.6B Base Q8/Q4 voice cloning in Chinese and English.
+- Streamed PCM/WAV output, cancellation, and bounded per-chunk generation.
+- Revision-pinned, verified model downloads and permissively licensed sources.
+- Independent Linux, Windows and macOS CI with real-model and crate checks.

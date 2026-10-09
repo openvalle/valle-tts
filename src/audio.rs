@@ -8,6 +8,12 @@ pub struct ReferenceVoice {
     pub(crate) transcript: Option<String>,
 }
 impl ReferenceVoice {
+    /// Validate 0.5–15 seconds of finite mono PCM at 8–192 kHz and resample to 24 kHz.
+    /// `Some(transcript)` enables in-context cloning; `None` requests speaker-only conditioning.
+    ///
+    /// # Errors
+    /// Rejects unsupported rates/duration, silence, non-finite samples, and
+    /// transcripts that are blank, over 1024 characters, or contain NUL.
     pub fn new(samples: Vec<f32>, sample_rate: u32, transcript: Option<String>) -> Result<Self> {
         ensure!(
             (8000..=192000).contains(&sample_rate),
@@ -37,6 +43,10 @@ impl ReferenceVoice {
             transcript,
         })
     }
+    /// Read a short PCM/float WAV, mix up to eight channels and validate the reference.
+    ///
+    /// # Errors
+    /// Propagates I/O/decoding failures and the validation errors of [`Self::new`].
     pub fn from_wav(path: impl AsRef<Path>, transcript: Option<String>) -> Result<Self> {
         let mut reader = hound::WavReader::open(path.as_ref())
             .with_context(|| format!("read reference {}", path.as_ref().display()))?;
@@ -74,9 +84,11 @@ impl ReferenceVoice {
             .collect();
         Self::new(mono, spec.sample_rate, transcript)
     }
+    /// Borrow the resampled mono 24 kHz reference samples.
     pub fn samples(&self) -> &[f32] {
         &self.samples
     }
+    /// Borrow the transcript, or `None` for speaker-only conditioning.
     pub fn transcript(&self) -> Option<&str> {
         self.transcript.as_deref()
     }
