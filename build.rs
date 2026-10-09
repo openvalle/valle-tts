@@ -4,8 +4,27 @@ fn main() {
     println!("cargo:rerun-if-changed=vendor/ggml");
     #[cfg(feature = "qwen3")]
     {
-        let dst = cmake::Config::new("native")
-            .profile("Release")
+        let target = std::env::var("TARGET").expect("Cargo sets TARGET");
+        let mut config = cmake::Config::new("native");
+        config.profile("Release");
+        if target.contains("msvc") {
+            // cmake-rs supplies its own FLAGS_RELEASE for Visual Studio and
+            // strips optimization flags. Restore both optimization and NDEBUG,
+            // even when the Rust test harness uses a debug profile.
+            let features = std::env::var("CARGO_CFG_TARGET_FEATURE").unwrap_or_default();
+            let runtime = if features.split(',').any(|f| f == "crt-static") {
+                "/MT"
+            } else {
+                "/MD"
+            };
+            config
+                .define("CMAKE_C_FLAGS_RELEASE", format!("/O2 /DNDEBUG {runtime}"))
+                .define(
+                    "CMAKE_CXX_FLAGS_RELEASE",
+                    format!("/O2 /DNDEBUG /EHsc {runtime}"),
+                );
+        }
+        let dst = config
             .define("BUILD_SHARED_LIBS", "OFF")
             .define("GGML_NATIVE", "OFF")
             .define("GGML_CPU", "ON")
@@ -22,7 +41,6 @@ fn main() {
         for lib in ["valle_qwen", "ggml", "ggml-cpu", "ggml-base"] {
             println!("cargo:rustc-link-lib=static={lib}");
         }
-        let target = std::env::var("TARGET").expect("Cargo sets TARGET");
         if target.contains("apple") {
             println!("cargo:rustc-link-lib=c++");
         } else if !target.contains("msvc") {

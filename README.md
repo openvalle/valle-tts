@@ -26,6 +26,8 @@ cargo run --locked --release -- download --cache-dir models
 Direct crates were checked against the latest stable crates.io releases on
 2026-10-09. Rust is pinned to 1.99.0; Cargo.lock also pins transitive versions.
 Native sources are committed, so building never fetches C++ dependencies.
+Native inference uses Release optimization even in `cargo test`; MSVC's
+Release flags explicitly retain optimization and C++ exception handling.
 
 ## Voice cloning
 

@@ -30,7 +30,9 @@ fn real_bilingual_voice_cloning_streaming_and_cancellation() -> Result<()> {
         }
         paths.push(destination);
     }
+    eprintln!("[test] loading {} on {}", spec.id, std::env::consts::OS);
     let mut model = Qwen3::load(&spec.id, &paths[0], &paths[1])?;
+    eprintln!("[test] model loaded: {}", Qwen3::backend_version());
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
     let english = ReferenceVoice::from_wav(
         fixtures.join("sample1.wav"),
@@ -96,6 +98,7 @@ fn real_bilingual_voice_cloning_streaming_and_cancellation() -> Result<()> {
         ),
     ];
     for (name, text, language, voice, limit) in cases {
+        eprintln!("[test] starting {name}");
         let start = Instant::now();
         let mut first = None;
         let mut callbacks = 0;
@@ -145,6 +148,7 @@ fn real_bilingual_voice_cloning_streaming_and_cancellation() -> Result<()> {
     }
     // Stop a live native worker after the first callback, then prove the context
     // remains reusable and that user sink failures return to Rust unchanged.
+    eprintln!("[test] checking live cancellation");
     let token = valle_tts::CancellationToken::default();
     let callback_token = token.clone();
     let cancelled = model.synthesize(
@@ -161,6 +165,7 @@ fn real_bilingual_voice_cloning_streaming_and_cancellation() -> Result<()> {
         },
     );
     ensure!(cancelled.is_err(), "cooperative cancellation was ignored");
+    eprintln!("[test] checking sink error propagation and context reuse");
     let error = model
         .synthesize(
             "你好。",
@@ -176,6 +181,7 @@ fn real_bilingual_voice_cloning_streaming_and_cancellation() -> Result<()> {
         error.to_string().contains("intentional sink failure"),
         "sink error was lost: {error}"
     );
+    eprintln!("[test] checking generation budget failure");
     let budget = model.synthesize(
         "这句话不能在一帧之内读完。",
         &chinese,
@@ -194,7 +200,7 @@ fn real_bilingual_voice_cloning_streaming_and_cancellation() -> Result<()> {
         out.join("validation.json"),
         serde_json::to_vec_pretty(&json!({
             "platform":std::env::consts::OS,"architecture":std::env::consts::ARCH,"model":spec.id,"revision":spec.revision,
-            "native_backend":Qwen3::backend_version(),"cases":receipts,"cancellation":true,"sink_error_propagation":true,
+            "native_backend":Qwen3::backend_version(),"cases":receipts,"cancellation":true,"sink_error_propagation":true,"generation_budget_failure":true,
             "scope":"Real inference and audio integrity only; intelligibility and speaker similarity require separate evaluation."
         }))?,
     )?;

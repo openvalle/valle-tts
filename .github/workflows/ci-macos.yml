@@ -51,6 +51,7 @@ jobs:
       - name: Download or verify Qwen3-TTS Q8 weights
         run: cargo run --locked -- download --cache-dir models
       - name: Real bilingual cloning, streaming and cancellation
+        timeout-minutes: 15
         run: cargo test --locked --test real_models -- --ignored --nocapture
       - name: Upload generated WAV files and validation receipt
         if: always()
