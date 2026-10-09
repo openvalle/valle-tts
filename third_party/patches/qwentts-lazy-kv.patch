@@ -1,0 +1,84 @@
+--- a/src/pipeline-tts.cpp
++++ b/src/pipeline-tts.cpp
+@@ -4,6 +4,8 @@
+ 
+ // Modified by Valle contributors: a generation budget without EOS is an error,
+ // so callers cannot accidentally commit a silently truncated WAV.
++// Single-request Talker KV is allocated from the prompt + generation budget,
++// and grows only between requests after old graphs/buffers have been released.
+ #include "pipeline-tts.h"
+ 
+ #include "audio-io.h"
+@@ -251,11 +253,12 @@
+         return false;
+     }
+ 
+-    // KV caches, one set per slot: the talker holds the LM context up
+-    // to 4096 positions (the longest ICL prompt observed is ~250 +
+-    // max_new_tokens ~ 1500, so 4096 has 60% headroom). Predictor holds
+-    // one frame of 16 sub-steps per slot.
+-    if (!kv_cache_init(&pt->talker_kv, pt->talker.num_hidden_layers, pt->talker.num_key_value_heads,
++    // A single-request engine needs no Talker KV until the prompt is known.
++    // Batched engines keep the original fixed capacity so admitting a new
++    // request never invalidates an active slot. Predictor holds one frame.
++    pt->talker_kv = {};
++    if (pt->max_batch > 1 &&
++        !kv_cache_init(&pt->talker_kv, pt->talker.num_hidden_layers, pt->talker.num_key_value_heads,
+                        pt->talker.head_dim, 4096, pt->max_batch, pt->backend)) {
+         ggml_backend_sched_free(pt->sched);
+         pt->sched = NULL;
+@@ -351,6 +354,41 @@
+            pt->model_size.c_str(), pt->model_type.c_str(), pt->tokenizer_type.c_str(), pt->num_code_groups,
+            pt->has_speaker_encoder ? "deferred" : "absent", pt->speakers.size(), pt->use_flash_attn ? "on" : "off",
+            pt->clamp_fp16 ? "on" : "off", pt->max_batch);
++    return true;
++}
++
++// Called by the sole compute worker before prefill, with no older live slot.
++// Preserve the original 4096-position ceiling and 256-position graph classes.
++static bool pipeline_tts_reserve_talker(PipelineTTS * pt, int prompt_tokens, int generation_tokens) {
++    constexpr int context_limit = 4096;
++    if (prompt_tokens <= 0 || prompt_tokens > context_limit) {
++        qt_set_error("Talker prompt length %d exceeds context limit %d", prompt_tokens, context_limit);
++        return false;
++    }
++    const int64_t requested = (int64_t) prompt_tokens + (generation_tokens > 0 ? generation_tokens : 1);
++    const int capacity = requested >= context_limit ? context_limit : (int) ((requested + 255) / 256 * 256);
++    if (pt->talker_kv.buffer && pt->talker_kv.max_seq_len >= capacity) {
++        return true;
++    }
++
++    // Decode graphs contain views into KV. Reset the scheduler and destroy
++    // those graphs before freeing KV; old and new buffers never coexist.
++    ggml_backend_sched_reset(pt->sched);
++    for (auto & graph : pt->talker_decode_graphs) {
++        talker_decode_graph_free(&graph);
++    }
++    pt->talker_decode_graphs.clear();
++    kv_cache_free(&pt->talker_kv);
++    pt->talker_kv = {};
++    if (!kv_cache_init(&pt->talker_kv, pt->talker.num_hidden_layers, pt->talker.num_key_value_heads,
++                       pt->talker.head_dim, capacity, 1, pt->backend)) {
++        // kv_cache_init already releases its context on allocation failure.
++        // Clear its stale metadata so teardown/retry remains safe.
++        pt->talker_kv = {};
++        qt_set_error("failed to allocate Talker KV for %d positions", capacity);
++        return false;
++    }
++    pt->talker_decode_graphs.resize((size_t) capacity / 256);
+     return true;
+ }
+ 
+@@ -879,6 +917,12 @@
+         return tts_admit_fail(job, QT_STATUS_GENERATE_FAILED);
+     }
+     s.perf.build_ms = t_build.ms();
++
++    if (pt->max_batch == 1 &&
++        !pipeline_tts_reserve_talker(pt, s.prompt.T_ctx, params->max_new_tokens)) {
++        e->slots.pop_back();
++        return tts_admit_fail(job, QT_STATUS_GENERATE_FAILED);
++    }
+ 
+     if (params->dump_dir) {
+         DebugDumper d;

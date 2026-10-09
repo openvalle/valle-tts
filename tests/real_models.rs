@@ -146,6 +146,37 @@ fn real_bilingual_voice_cloning_streaming_and_cancellation() -> Result<()> {
         eprintln!("{receipt}");
         receipts.push(receipt);
     }
+    // A larger generation budget must resize KV between requests, invalidate
+    // old graph views, and keep both seeded audio and the handle reusable.
+    // The short budget uses 256 positions; the larger one needs 768 or more.
+    eprintln!("[test] checking KV growth and deterministic context reuse");
+    let mut reference = Vec::new();
+    for budget in [160, 700, 160] {
+        let mut audio = Vec::new();
+        model.synthesize(
+            "今天天气很好，我们一起出去散步。",
+            &chinese,
+            &SynthesisOptions {
+                language: Language::Chinese,
+                max_tokens: budget,
+                ..Default::default()
+            },
+            &mut |chunk| {
+                audio.extend(chunk.samples);
+                Ok(())
+            },
+        )?;
+        if reference.is_empty() {
+            reference = audio;
+        } else {
+            ensure!(
+                audio == reference,
+                "KV growth changed seeded audio or left stale graph views"
+            );
+        }
+    }
+    drop(reference);
+
     // Stop a live native worker after the first callback, then prove the context
     // remains reusable and that user sink failures return to Rust unchanged.
     eprintln!("[test] checking live cancellation");
@@ -200,7 +231,7 @@ fn real_bilingual_voice_cloning_streaming_and_cancellation() -> Result<()> {
         out.join("validation.json"),
         serde_json::to_vec_pretty(&json!({
             "platform":std::env::consts::OS,"architecture":std::env::consts::ARCH,"model":spec.id,"revision":spec.revision,
-            "native_backend":Qwen3::backend_version(),"cases":receipts,"cancellation":true,"sink_error_propagation":true,"generation_budget_failure":true,
+            "native_backend":Qwen3::backend_version(),"cases":receipts,"kv_budget_growth_preserves_audio":true,"cancellation":true,"sink_error_propagation":true,"generation_budget_failure":true,
             "scope":"Real inference and audio integrity only; intelligibility and speaker similarity require separate evaluation."
         }))?,
     )?;

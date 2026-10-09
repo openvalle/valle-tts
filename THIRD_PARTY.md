@@ -16,11 +16,25 @@ MIT license and notices are preserved. This distinction is intentional.
 
 ## Native changes
 
-`vendor/qwentts/src/pipeline-tts.cpp` has one local behavior change: reaching the
-frame budget without EOS returns a generation failure, so our transactional WAV
-writer cannot silently publish truncated speech. The modified file has a
-prominent notice. The exact delta is preserved in
-`third_party/patches/qwentts-generation-budget.patch`.
+`vendor/qwentts/src/pipeline-tts.cpp` has two local changes. Reaching the frame
+budget without EOS returns a generation failure, so our transactional WAV writer
+cannot silently publish truncated speech. Single-request engines allocate Talker
+KV only after the prompt is known, round prompt plus frame budget to 256-position
+classes, and grow between requests up to the original 4096-position ceiling.
+Growth releases old graph views and KV before allocating a replacement; batched
+engines retain their original fixed allocation. Model precision is unchanged.
+The modified file has a prominent notice. Apply the exact deltas in this order:
+`third_party/patches/qwentts-generation-budget.patch`, then
+`third_party/patches/qwentts-lazy-kv.patch`.
+
+`vendor/qwentts/src/gguf-weights.h` and `weight-ctx.h` additionally bind
+unconverted CPU tensors directly to immutable mapped GGUF storage. Converted
+tensors retain owned buffers, non-CPU backends retain the copy path, and weight
+buffers are destroyed before their GGUF mapping. No quantization or weight
+values change. The exact delta is in
+`third_party/patches/qwentts-mapped-cpu-weights.patch`. Our adapter uses the
+pinned GGML internal multi-buffer helper to own mapped-buffer metadata and
+converted-weight buffers together; no GGML source file is modified.
 
 `native/CMakeLists.txt`, `native/bridge.cpp` and `build.rs` are new Valle code.
 They build only the CPU pipeline, supply the pinned version identity and hide
