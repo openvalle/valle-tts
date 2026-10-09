@@ -84,6 +84,13 @@ interruptible.
 Long input is split at punctuation/word boundaries with a Unicode character
 limit (`--max-chunk-chars`, default 160). Inference retains one text chunk and
 its bounded KV/codec state; WAV writing does not collect a whole output in RAM.
+Single-request Talker KV is allocated when the prompt is known, in 256-position
+classes covering prompt plus generation budget, up to 4096 positions. A larger
+request releases old decode graphs and KV before allocating the replacement;
+capacity is then reused. For this 0.6B model, 256/768/4096 positions use
+56/168/896 MiB of Talker KV, excluding other weights, graphs and codec state.
+CPU inference reads unconverted weights directly from the immutable GGUF
+mapping. Only weights needing type conversion/layout changes use owned copies.
 The input `&str` is owned by the caller; `--text-file` currently reads text into
 memory. Independent chunk synthesis can change prosody at boundaries.
 `--max-tokens` is a per-chunk hard frame budget (512 = 40.96 seconds). Exhausting

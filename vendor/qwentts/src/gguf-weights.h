@@ -1,4 +1,6 @@
 #pragma once
+// Modified by Valle contributors: unconverted CPU weights can borrow the
+// immutable GGUF mapping; converted/permuted tensors retain owned buffers.
 // gguf-weights.h: load model weights from GGUF files
 //
 // GGUF weight loader for all model components (LM, DiT, CondEncoder, TextEncoder, Detokenizer, VAE).
@@ -199,7 +201,13 @@ static struct ggml_tensor * gf_load_tensor(WeightCtx *         wctx,
     const void * data   = gf.mapping + gf.data_offset + offset;
     size_t       nbytes = ggml_nbytes(src);
 
-    wctx->pending.push_back({ tensor, data, nbytes, 0 });
+    // Modified by Valle contributors: mark unconverted GGUF bytes as eligible
+    // for read-only CPU mapping. Staging/conversion paths remain owned copies.
+    if (!wctx->mapped_base) {
+        wctx->mapped_base = gf.mapping;
+        wctx->mapped_size = gf.file_size;
+    }
+    wctx->pending.push_back({ tensor, data, nbytes, 0, wctx->mapped_base == gf.mapping });
     return tensor;
 }
 

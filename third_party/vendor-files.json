@@ -569,7 +569,8 @@
   },
   {
     "path": "vendor/qwentts/src/gguf-weights.h",
-    "sha256": "88e1166f29818f9a1d4abeb8913af38d3858ac1a7f9b14ea86d4e1cd17e80bc4"
+    "sha256": "aace9d8c9fc67d35931e586af40134da3ae957198958e3a445daf7f03c8fdc7f",
+    "upstream_sha256": "88e1166f29818f9a1d4abeb8913af38d3858ac1a7f9b14ea86d4e1cd17e80bc4"
   },
   {
     "path": "vendor/qwentts/src/graph-arena.h",
@@ -593,7 +594,7 @@
   },
   {
     "path": "vendor/qwentts/src/pipeline-tts.cpp",
-    "sha256": "9717bd82d42f93ea31caf17024ccc5133652e2373a5d3e42d3949fbf759690ff",
+    "sha256": "9477d2e5114abbf4db3fc7c0fd2e23c380fecf565f703b620ceab30cf9d97117",
     "upstream_sha256": "a897cca5165bc901a679819fd9594aa2617a8243cb7771572d88b8e25eb1fc85"
   },
   {
@@ -690,6 +691,7 @@
   },
   {
     "path": "vendor/qwentts/src/weight-ctx.h",
-    "sha256": "84bdf3a1b3353984e7c05752490a02af88e5cc39b506fc5b417b672207c78e87"
+    "sha256": "beb0227f4de1ff6ea53dd41b386d25c557efc6a4ed3063f895a1bf5250357950",
+    "upstream_sha256": "84bdf3a1b3353984e7c05752490a02af88e5cc39b506fc5b417b672207c78e87"
   }
 ]

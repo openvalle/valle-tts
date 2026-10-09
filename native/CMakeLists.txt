@@ -17,6 +17,6 @@ add_library(valle_qwen STATIC
   ../vendor/qwentts/src/qwen.cpp
   ../vendor/qwentts/src/pipeline-tts.cpp
   ../vendor/qwentts/src/pipeline-codec.cpp)
-target_include_directories(valle_qwen PRIVATE ../vendor/qwentts/src ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(valle_qwen PRIVATE ../vendor/qwentts/src ../vendor/ggml/src ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(valle_qwen PRIVATE ggml ggml-cpu ggml-base Threads::Threads)
 install(TARGETS valle_qwen ARCHIVE DESTINATION lib)
