@@ -7,6 +7,12 @@ fn main() {
         let target = std::env::var("TARGET").expect("Cargo sets TARGET");
         let mut config = cmake::Config::new("native");
         config.profile("Release");
+        if target == "aarch64-pc-windows-msvc" {
+            // GGML's MSVC ARM path requires host-specific feature probing.
+            // ClangCL provides the portable ARM64 baseline with GGML_NATIVE=OFF
+            // and keeps the MSVC ABI used by Rust and the Windows SDK.
+            config.generator_toolset("ClangCL");
+        }
         if target.contains("msvc") {
             // cmake-rs supplies its own FLAGS_RELEASE for Visual Studio and
             // strips optimization flags. Restore both optimization and NDEBUG,

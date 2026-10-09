@@ -1,4 +1,4 @@
-name: linux TTS
+name: Linux x86_64 TTS
 on:
   push:
     branches: [main]
@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: linux-${{ github.ref }}
+  group: linux-x86_64-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   validate:
@@ -22,9 +22,12 @@ jobs:
       VALLE_TTS_TEST_CACHE: models
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: dtolnay/rust-toolchain@1.99.0
-        with:
-          components: rustfmt, clippy
+      - name: Install native Rust toolchain
+        run: |
+          rustup toolchain install 1.99.0-x86_64-unknown-linux-gnu --profile minimal --component rustfmt --component clippy
+          rustup override set 1.99.0-x86_64-unknown-linux-gnu
+      - name: Verify native runner architecture
+        run: python scripts/check_ci_host.py x86_64-unknown-linux-gnu '${{ runner.arch }}'
       - uses: Swatinem/rust-cache@v2.9.2
         with:
           key: linux-rust-1.99
@@ -32,6 +35,8 @@ jobs:
           cache-on-failure: true
       - name: Verify pinned native sources
         run: python scripts/check_vendor.py
+      - name: Release guard tests
+        run: python -m unittest discover -s scripts -p 'test_*.py'
       - name: Format
         run: cargo fmt --all -- --check
       - name: Lint
@@ -56,7 +61,7 @@ jobs:
       - name: Upload verified crate archive
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: linux-valle-tts-crate
+          name: linux-x86_64-valle-tts-crate
           path: target/package/valle-tts-*.crate
           if-no-files-found: error
           retention-days: 14
@@ -81,7 +86,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: linux-qwen3-tts-results
+          name: linux-x86_64-qwen3-tts-results
           path: artifacts/
           if-no-files-found: warn
           retention-days: 14
+      - name: Exclude package staging from the build cache
+        if: always()
+        run: python -c "import shutil; shutil.rmtree('target/package', ignore_errors=True)"

@@ -7,15 +7,19 @@ The API accepts additional model families through `TtsModel`.
 The Qwen backend statically links a pinned MIT-licensed GGML C++ core. This is
 **not a pure Rust inference implementation**. No Python, libtorch, external TTS
 process, network service or system-installed model runtime is needed at runtime.
-CPU is the initial common backend for Windows x64, Linux x64 and macOS ARM64.
-The x64 builds require AVX2, FMA and F16C. GPU acceleration and other CPU
-architectures are not yet validated.
+CPU is the common backend for Windows, Linux and macOS, each on x86_64
+and ARM64. The x86_64 builds require AVX2, FMA and F16C; ARM64 uses the
+portable compiler baseline without host-specific GGML instruction probing.
+GPU acceleration and other CPU architectures are not validated.
 
 ## Build
 
 Install the Rust toolchain from `rust-toolchain.toml`, CMake 3.20+ and a C/C++17
 compiler. On Windows install Visual Studio Build Tools with Desktop development
-with C++; on macOS install Xcode command line tools; on Linux use GCC or Clang.
+with C++; Windows ARM64 additionally needs the ARM64 C++ tools and the
+Clang compiler/ClangCL toolset components. Its default Visual Studio CMake
+generator automatically selects ClangCL with the Rust MSVC ABI. On macOS
+install Xcode command line tools; on Linux use GCC or Clang.
 
 ```sh
 cargo build --locked --release
@@ -162,12 +166,23 @@ All three are enabled by default. The model-independent core can be used with
 
 ## Validation
 
-Three independent workflows run in parallel: [Linux](https://github.com/openvalle/valle-tts/actions/workflows/ci-linux.yml),
+| OS | CPU | Rust target | GitHub runner |
+|---|---|---|---|
+| Linux | x86_64 | `x86_64-unknown-linux-gnu` | [`ubuntu-24.04`](https://github.com/openvalle/valle-tts/actions/workflows/ci-linux.yml) |
+| Linux | arm64 | `aarch64-unknown-linux-gnu` | [`ubuntu-24.04-arm`](https://github.com/openvalle/valle-tts/actions/workflows/ci-linux-arm64.yml) |
+| Windows | x86_64 | `x86_64-pc-windows-msvc` | [`windows-2022`](https://github.com/openvalle/valle-tts/actions/workflows/ci-windows.yml) |
+| Windows | arm64 | `aarch64-pc-windows-msvc` | [`windows-11-arm`](https://github.com/openvalle/valle-tts/actions/workflows/ci-windows-arm64.yml) |
+| macOS | arm64 | `aarch64-apple-darwin` | [`macos-15`](https://github.com/openvalle/valle-tts/actions/workflows/ci-macos.yml) |
+| macOS | x86_64 | `x86_64-apple-darwin` | [`macos-15-intel`](https://github.com/openvalle/valle-tts/actions/workflows/ci-macos-x86_64.yml) |
+
+Six independent native workflows run in parallel. Each OS has x86_64 and
+ARM64 workflows: [Linux](https://github.com/openvalle/valle-tts/actions/workflows/ci-linux.yml),
 [Windows](https://github.com/openvalle/valle-tts/actions/workflows/ci-windows.yml), [macOS](https://github.com/openvalle/valle-tts/actions/workflows/ci-macos.yml).
-Each runs formatting, Clippy, license/provenance checks, optional-backend checks,
+CI checks both the runner CPU and Rust host triple before compilation. Each
+workflow runs formatting, Clippy, license/provenance checks, optional-backend checks,
 API tests and **explicit real-model inference**; a skipped model test is not a pass.
-Rust/native build caches are platform-specific. Verified model weights use a
-shared cross-OS cache keyed by the full pinned catalog.
+Rust/native build caches are isolated by OS and CPU architecture. Verified
+model weights use a shared cross-OS cache keyed by the full pinned catalog.
 
 ```sh
 cargo test --locked
@@ -233,13 +248,13 @@ version increment before 1.0; compatible fixes use a patch increment. Document
 changes in the release notes and tag each published version. The minimum Rust
 version is declared in `Cargo.toml` and matches the toolchain used in CI.
 
-Before publishing, require all three platform workflows (including the explicit
-real-model tests) to pass, review the archive's contents and licenses, and confirm
+Before publishing, require all six platform/architecture workflows, including
+the explicit real-model tests, to pass, review the archive's contents and licenses, and confirm
 the version is new on crates.io. A dry run does not reserve the crate name or
 verify the publisher account's ownership. Publishing a GitHub Release tagged `v<version>` triggers
 `.github/workflows/release.yml`. The tag must match `Cargo.toml` and belong to
-main history; all three independent platform workflows must have passed at
-that exact commit. The workflow uses the repository secret
+main history; all six independent platform/architecture workflows must have
+passed at that exact commit. The workflow uses the repository secret
 `CARGO_REGISTRY_TOKEN`, validates the archive before uploading, and checks its
 SHA-256 against crates.io. Re-running an identical published archive is safe;
 an existing version with different contents is rejected. Manual dispatch can

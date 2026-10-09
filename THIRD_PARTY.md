@@ -65,7 +65,9 @@ upstream licenses are unchanged.
 `native/CMakeLists.txt`, `native/bridge.cpp` and `build.rs` are new Valle code.
 They build only the CPU pipeline, supply the pinned version identity and hide
 upstream ABI structs behind a small compiled adapter. No upstream source is
-fetched or executed during the build.
+fetched or executed during the build. Windows ARM64 selects Visual Studio's
+ClangCL toolset to keep `GGML_NATIVE=OFF` and the portable ARM64 baseline;
+no upstream GGML source or license is changed for this build configuration.
 
 `third_party/sources.json` identifies source commits. `third_party/vendor-files.json`
 lists every copied file and its current SHA-256; the changed pipeline also
@@ -97,7 +99,7 @@ Apache-2.0. Weights are downloaded separately and are not committed to Git.
 Direct crates were checked against the newest stable crates.io releases on
 2026-10-09. Cargo.lock pins the resolved graph. `third_party/crates.json`
 records external dependencies, SPDX expressions and repositories across the
-supported Linux, Windows and macOS targets. Workspace packages are excluded
+six supported Linux, Windows and macOS x86_64/ARM64 targets. Workspace packages are excluded
 from this third-party report. `scripts/check_licenses.py` selects permissive
 options for dual-licensed crates and rejects missing or non-permissive choices.
 Native MIT sources are separately verified, since Cargo metadata does not cover
