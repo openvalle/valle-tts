@@ -1,5 +1,10 @@
 # Third-party provenance and licenses
 
+This document records external implementation references, copied or modified
+code, test fixtures, model weights and dependency licenses. Valle's original
+code is Apache-2.0, as declared in the repository [LICENSE](LICENSE).
+Third-party material retains its upstream license and notices.
+
 This repository has a new Rust API, model dispatch, CLI, audio frontend, WAV
 writer and safe native adapter. **The Qwen inference core is copied and linked
 C++ source, not a new pure Rust neural network implementation.** Its existing
@@ -10,9 +15,18 @@ MIT license and notices are preserved. This distinction is intentional.
 | [ServeurpersoCom/qwentts.cpp](https://github.com/ServeurpersoCom/qwentts.cpp/tree/51512f129a7419567f4b8abfb06801451789b8f1) | `51512f129a7419567f4b8abfb06801451789b8f1` | MIT | `src/` copied to `vendor/qwentts/src/`; the three pipeline translation units are compiled and statically linked. No CLI, HTTP server, converter or third-party HTTP/JSON library is built. Upstream LICENSE retained. |
 | [ServeurpersoCom/ggml](https://github.com/ServeurpersoCom/ggml/tree/2eddaf94a8cdbbf1c30017d28313cd661a9da543) | `2eddaf94a8cdbbf1c30017d28313cd661a9da543` | MIT | The upstream's exact ggml submodule, copied under `vendor/ggml/` without Git metadata, examples, tests, CI, docs and non-CPU backend source directories. Only CPU/core code is compiled; GPU/third-party acceleration paths are disabled. LICENSE retained. |
 | [QwenLM/Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) | Model revisions below | Apache-2.0 | Official architecture/model documentation reference; no Python source copied into our Rust code. Full license in `third_party/QwenLM__Qwen3-TTS-LICENSE`. |
-| [openvalle/valle-asr](https://github.com/openvalle/valle-asr/tree/8d37bb1dffa84ee8610112c23f9a6f4912386f35) | `8d37bb1dffa84ee8610112c23f9a6f4912386f35` | Apache-2.0 | `src/cache.rs` and `scripts/check_licenses.py` adapted by replacing project/environment names; toolchain and independent CI organization reused. The common Apache-2.0 license is at repository root. |
-| [alan890104/qwen3-asr-rs](https://github.com/alan890104/qwen3-asr-rs/tree/c5ef09646af6278d2ba8b8ceaf543ffb32d1a5dc) | `c5ef09646af6278d2ba8b8ceaf543ffb32d1a5dc` | MIT | English `tests/fixtures/sample1.wav` and transcript copied via valle-asr. Original source hashes are in `tests/fixtures/provenance.json`; only sample1 is included here. Full MIT notice retained under `third_party/`. |
+| [alan890104/qwen3-asr-rs](https://github.com/alan890104/qwen3-asr-rs/tree/c5ef09646af6278d2ba8b8ceaf543ffb32d1a5dc) | `c5ef09646af6278d2ba8b8ceaf543ffb32d1a5dc` | MIT | Copied English `tests/fixtures/sample1.wav` and `sample1.txt`; no inference code from this project is used. Original source hashes are in `tests/fixtures/provenance.json`; only sample1 is included here. |
 | [AISHELL-1](https://www.openslr.org/33/) | Mirror `2724409d538167445e43ebf846990319f12a1cbf` | Apache-2.0 | One Chinese reference WAV and its original transcript. Source path, hash and pinned mirror are in `tests/fixtures/zh-provenance.json`; license in `third_party/AISHELL-1-LICENSE`. No other dataset audio is included. |
+
+Full upstream licenses and their copyright notices are preserved verbatim:
+
+| Source | Preserved license |
+|---|---|
+| qwentts.cpp | [MIT notice](vendor/qwentts/LICENSE) |
+| ggml | [MIT notice](vendor/ggml/LICENSE) |
+| Qwen3-TTS | [Apache-2.0 notice](third_party/QwenLM__Qwen3-TTS-LICENSE) |
+| qwen3-asr-rs fixture | [MIT notice](third_party/alan890104__qwen3-asr-rs-LICENSE) |
+| AISHELL-1 fixture | [Apache-2.0 notice](third_party/AISHELL-1-LICENSE) |
 
 ## Native changes
 
@@ -47,6 +61,15 @@ records its original upstream hash. `scripts/check_vendor.py` fails on unexpecte
 files or modifications. Review upstream licensing and local deltas before
 regenerating these records.
 
+## Test fixtures
+
+[tests/fixtures/provenance.json](tests/fixtures/provenance.json) records the
+external source revision, sizes and SHA-256 hashes of the English WAV and
+transcript. [tests/fixtures/zh-provenance.json](tests/fixtures/zh-provenance.json)
+records the AISHELL-1 source, mirror revision, original dataset path, sample ID,
+WAV hash and Chinese transcript. The corresponding MIT and Apache-2.0 notices
+are retained in `third_party/`.
+
 ## Model weights
 
 `models.json` pins [Serveurperso/Qwen3-TTS-GGUF](https://huggingface.co/Serveurperso/Qwen3-TTS-GGUF/tree/b7ee2e8c7459c3bea99da23e3d178125a7d1713c)
@@ -61,8 +84,21 @@ Apache-2.0. Weights are downloaded separately and are not committed to Git.
 
 Direct crates were checked against the newest stable crates.io releases on
 2026-10-09. Cargo.lock pins the resolved graph. `third_party/crates.json`
-records dependencies, SPDX expressions and repositories across the supported
-Linux, Windows and macOS targets. `scripts/check_licenses.py` selects permissive
+records external dependencies, SPDX expressions and repositories across the
+supported Linux, Windows and macOS targets. Workspace packages are excluded
+from this third-party report. `scripts/check_licenses.py` selects permissive
 options for dual-licensed crates and rejects missing or non-permissive choices.
 Native MIT sources are separately verified, since Cargo metadata does not cover
 vendored C++ code.
+
+## Distribution and updates
+
+`Cargo.toml` includes this document, `third_party/`, the complete pinned native
+sources and their MIT licenses, and fixture provenance in the published source
+archive. Model weights and generated test output are downloaded or produced
+separately and are excluded from that archive.
+
+When updating external code or dependencies, verify the actual license and
+pinned revision, retain upstream notices, document local modifications, and
+regenerate the source/dependency reports. Run `scripts/check_vendor.py` and
+`scripts/check_licenses.py` before merging those changes.

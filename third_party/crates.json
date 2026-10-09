@@ -816,12 +816,6 @@
     "repository": "https://github.com/alacritty/vte"
   },
   {
-    "name": "valle-tts",
-    "version": "0.1.0",
-    "license": "Apache-2.0",
-    "repository": "https://github.com/openvalle/valle-tts"
-  },
-  {
     "name": "want",
     "version": "0.3.2",
     "license": "MIT",
