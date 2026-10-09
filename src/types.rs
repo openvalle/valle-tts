@@ -1,9 +1,6 @@
+use crate::CancellationToken;
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
-};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 /// Language control for synthesis; automatic mode also permits mixed text.
@@ -39,21 +36,6 @@ impl Language {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-/// A cloneable, thread-safe signal to stop synthesis cooperatively.
-/// Cancellation is permanent for all clones; create a new token for later requests.
-pub struct CancellationToken(Arc<AtomicBool>);
-impl CancellationToken {
-    /// Signal cancellation to every clone of this token.
-    pub fn cancel(&self) {
-        self.0.store(true, Ordering::Relaxed);
-    }
-    /// Whether cancellation has been signalled.
-    pub fn is_cancelled(&self) -> bool {
-        self.0.load(Ordering::Relaxed)
-    }
-}
-
 #[derive(Debug, Clone)]
 /// Per-request synthesis controls, including bounded chunking and cancellation.
 pub struct SynthesisOptions {
@@ -69,7 +51,8 @@ pub struct SynthesisOptions {
     /// Unicode character limit per text chunk within `1..=500`, default 160.
     /// Splitting at punctuation bounds text/KV/audio growth for long input.
     pub max_chunk_chars: usize,
-    /// Shared stop signal; backends determine interruption boundaries.
+    /// Shared stop signal. Cancellation returns [`crate::Cancelled`]; use a new
+    /// token for each request. Backends determine interruption boundaries.
     pub cancellation: CancellationToken,
 }
 impl Default for SynthesisOptions {
@@ -86,6 +69,7 @@ impl Default for SynthesisOptions {
 }
 impl SynthesisOptions {
     pub(crate) fn validate(&self) -> Result<()> {
+        self.cancellation.check()?;
         ensure!(
             (1..=4096).contains(&self.max_tokens),
             "max_tokens must be 1..=4096"
@@ -98,7 +82,6 @@ impl SynthesisOptions {
             self.temperature.is_finite() && (0.0..=2.0).contains(&self.temperature),
             "temperature must be finite and within 0..=2"
         );
-        ensure!(!self.cancellation.is_cancelled(), "synthesis cancelled");
         Ok(())
     }
 }

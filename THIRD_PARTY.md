@@ -30,7 +30,7 @@ Full upstream licenses and their copyright notices are preserved verbatim:
 
 ## Native changes
 
-`vendor/qwentts/src/pipeline-tts.cpp` has two local changes. Reaching the frame
+`vendor/qwentts/src/pipeline-tts.cpp` changes generation budgeting and KV allocation. Reaching the frame
 budget without EOS returns a generation failure, so our transactional WAV writer
 cannot silently publish truncated speech. Single-request engines allocate Talker
 KV only after the prompt is known, round prompt plus frame budget to 256-position
@@ -49,6 +49,18 @@ values change. The exact delta is in
 `third_party/patches/qwentts-mapped-cpu-weights.patch`. Our adapter uses the
 pinned GGML internal multi-buffer helper to own mapped-buffer metadata and
 converted-weight buffers together; no GGML source file is modified.
+
+`vendor/qwentts/src/qwen.cpp` and `qwen.h` expose a scoped CPU compute
+cancellation hook for Valle's serialized, single-request adapter. It uses
+GGML's existing CPU abort callback during reference extraction, prompt prefill
+and codec/generation compute. The adapter clears the borrowed callback after
+each synchronous call, including failures. `pipeline-tts.cpp` also catches
+worker admission/step exceptions and detaches incomplete slots and codec lanes,
+so a cancelled prompt graph cannot terminate the process or retain a completed
+job pointer. All modified files carry prominent notices; the exact delta is
+`third_party/patches/qwentts-compute-cancellation.patch`, applied after the
+existing generation-budget and lazy-KV patches. GGML sources and
+upstream licenses are unchanged.
 
 `native/CMakeLists.txt`, `native/bridge.cpp` and `build.rs` are new Valle code.
 They build only the CPU pipeline, supply the pinned version identity and hide

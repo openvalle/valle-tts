@@ -1,4 +1,5 @@
 // qwen.cpp: public ABI implementation.
+// Modified by Valle contributors: expose scoped CPU compute cancellation.
 //
 // Every entry declared in qwen.h lives here under one extern "C" block
 // so the symbols carry C linkage and are linkable from C, Rust, Go,
@@ -17,6 +18,7 @@
 #include "qwen.h"
 
 #include "backend.h"
+#include "ggml-cpu.h"
 #include "bpe.h"
 #include "pipeline-tts.h"
 #include "qt-error.h"
@@ -81,6 +83,18 @@ struct qt_context {
     std::deque<RefJob *>    ref_queue;
     bool                    stop = false;
 };
+
+extern "C" void qt_set_compute_cancel(qt_context * q, qt_cancel_cb cancel, void * user_data) {
+    if (!q) return;
+    // Valle serializes calls and waits for the compute worker to retire each
+    // job. Its CPU schedulers share these same backend handles.
+    if (q->bp.backend && ggml_backend_is_cpu(q->bp.backend)) {
+        ggml_backend_cpu_set_abort_callback(q->bp.backend, cancel, user_data);
+    }
+    if (q->bp.cpu_backend && q->bp.cpu_backend != q->bp.backend) {
+        ggml_backend_cpu_set_abort_callback(q->bp.cpu_backend, cancel, user_data);
+    }
+}
 
 // Thread-local backing store for qt_last_error(). std::string sized once
 // per thread, grows on demand, never freed across calls: the std runtime

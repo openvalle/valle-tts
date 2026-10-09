@@ -1,0 +1,155 @@
+diff --git a/vendor/qwentts/src/qwen.cpp b/vendor/qwentts/src/qwen.cpp
+index 5234907..61d2f94 100644
+--- a/vendor/qwentts/src/qwen.cpp
++++ b/vendor/qwentts/src/qwen.cpp
+@@ -1,4 +1,5 @@
+ // qwen.cpp: public ABI implementation.
++// Modified by Valle contributors: expose scoped CPU compute cancellation.
+ //
+ // Every entry declared in qwen.h lives here under one extern "C" block
+ // so the symbols carry C linkage and are linkable from C, Rust, Go,
+@@ -17,6 +18,7 @@
+ #include "qwen.h"
+ 
+ #include "backend.h"
++#include "ggml-cpu.h"
+ #include "bpe.h"
+ #include "pipeline-tts.h"
+ #include "qt-error.h"
+@@ -82,6 +84,18 @@ struct qt_context {
+     bool                    stop = false;
+ };
+ 
++extern "C" void qt_set_compute_cancel(qt_context * q, qt_cancel_cb cancel, void * user_data) {
++    if (!q) return;
++    // Valle serializes calls and waits for the compute worker to retire each
++    // job. Its CPU schedulers share these same backend handles.
++    if (q->bp.backend && ggml_backend_is_cpu(q->bp.backend)) {
++        ggml_backend_cpu_set_abort_callback(q->bp.backend, cancel, user_data);
++    }
++    if (q->bp.cpu_backend && q->bp.cpu_backend != q->bp.backend) {
++        ggml_backend_cpu_set_abort_callback(q->bp.cpu_backend, cancel, user_data);
++    }
++}
++
+ // Thread-local backing store for qt_last_error(). std::string sized once
+ // per thread, grows on demand, never freed across calls: the std runtime
+ // reclaims it on thread exit. An empty string means "no error recorded
+diff --git a/vendor/qwentts/src/qwen.h b/vendor/qwentts/src/qwen.h
+index e12542a..79cd90a 100644
+--- a/vendor/qwentts/src/qwen.h
++++ b/vendor/qwentts/src/qwen.h
+@@ -218,6 +218,12 @@ QT_API void qt_voice_ref_free(struct qt_voice_ref * ref);
+ // audio frame, i.e. 1 / 12 Hz ~ 83 ms.
+ typedef bool (*qt_cancel_cb)(void * user_data);
+ 
++// Modified by Valle contributors: an exclusively owned, idle CPU context can
++// install a request-scoped GGML abort callback for reference extraction,
++// prefill and codec compute. Clear it after the synchronous call returns;
++// callback/data must remain valid until then. Not for concurrent/batched use.
++QT_API void qt_set_compute_cancel(struct qt_context * q, qt_cancel_cb cancel, void * user_data);
++
+ // Streaming output callback. When set on qt_tts_params, the synth
+ // pipeline runs in streaming mode: audio is decoded chunk by chunk from
+ // the AR codec frames and emitted through this callback rather than
+diff --git a/vendor/qwentts/src/pipeline-tts.cpp b/vendor/qwentts/src/pipeline-tts.cpp
+index 5301197..68900cd 100644
+--- a/vendor/qwentts/src/pipeline-tts.cpp
++++ b/vendor/qwentts/src/pipeline-tts.cpp
+@@ -6,6 +6,7 @@
+ // so callers cannot accidentally commit a silently truncated WAV.
+ // Single-request Talker KV is allocated from the prompt + generation budget,
+ // and grows only between requests after old graphs/buffers have been released.
++// Compute cancellation exceptions are caught and incomplete jobs are detached.
+ #include "pipeline-tts.h"
+ 
+ #include "audio-io.h"
+@@ -26,6 +27,8 @@
+ #include <cstdio>
+ #include <cstdlib>
+ #include <cstring>
++#include <exception>
++#include <new>
+ 
+ static void parse_codec_specials(const GGUFModel & gf, CodecSpecials & cs) {
+     cs.pad_id       = (int) gf_get_u32(gf, "qwen3-tts.codec.pad_id");
+@@ -758,7 +761,7 @@ static bool tts_admit_fail(TtsJob * job, qt_status st) {
+     return false;
+ }
+ 
+-bool tts_engine_admit(TtsEngine * e, TtsJob * job) {
++static bool tts_engine_admit_impl(TtsEngine * e, TtsJob * job) {
+     PipelineTTS *                pt     = e->pt;
+     const struct qt_tts_params * params = job->params;
+     job->status                         = QT_STATUS_OK;
+@@ -988,6 +991,30 @@ bool tts_engine_admit(TtsEngine * e, TtsJob * job) {
+     return true;
+ }
+ 
++// Modified by Valle contributors: prompt graph helpers throw on an aborted
++// compute. Retire the incomplete tail slot instead of terminating the worker
++// or retaining a pointer to the caller's stack job after it returns.
++bool tts_engine_admit(TtsEngine * e, TtsJob * job) {
++    qt_status status;
++    try {
++        return tts_engine_admit_impl(e, job);
++    } catch (const std::bad_alloc &) {
++        qt_set_error("tts_engine_admit: out of memory");
++        status = QT_STATUS_OOM;
++    } catch (const std::exception & error) {
++        qt_set_error("%s", error.what());
++        status = QT_STATUS_GENERATE_FAILED;
++    }
++    if (!e->slots.empty() && e->slots.back().job == job) {
++        if (e->slots.back().codec_set >= 0) e->codec_M--;
++        e->slots.pop_back();
++    }
++    if (job->params->cancel && job->params->cancel(job->params->cancel_user_data)) {
++        status = QT_STATUS_CANCELLED;
++    }
++    return tts_admit_fail(job, status);
++}
++
+ // Retire one finished slot: streaming drain or buffered codec decode,
+ // perf accounting, job status and worker side error capture. The codec
+ // stream mirror releases here.
+@@ -1107,7 +1134,7 @@ static void tts_slot_complete(TtsEngine * e, TtsSlot & s) {
+     job->status = st;
+ }
+ 
+-void tts_engine_step(TtsEngine * e, std::vector<TtsJob *> * retired) {
++static void tts_engine_step_impl(TtsEngine * e, std::vector<TtsJob *> * retired) {
+     PipelineTTS * pt = e->pt;
+     const int     N  = (int) e->slots.size();
+     if (N == 0) {
+@@ -1474,3 +1501,30 @@ void tts_engine_step(TtsEngine * e, std::vector<TtsJob *> * retired) {
+         e->slots.pop_back();
+     }
+ }
++
++// Keep all worker exceptions within the native error boundary, including a
++// cancelled codec graph. Clear streaming rows so a later request starts clean.
++void tts_engine_step(TtsEngine * e, std::vector<TtsJob *> * retired) {
++    qt_status status;
++    try {
++        tts_engine_step_impl(e, retired);
++        return;
++    } catch (const std::bad_alloc &) {
++        qt_set_error("tts_engine_step: out of memory");
++        status = QT_STATUS_OOM;
++    } catch (const std::exception & error) {
++        qt_set_error("%s", error.what());
++        status = QT_STATUS_GENERATE_FAILED;
++    }
++    for (TtsSlot & slot : e->slots) {
++        TtsJob * job = slot.job;
++        job->status = (job->params->cancel && job->params->cancel(job->params->cancel_user_data))
++                    ? QT_STATUS_CANCELLED : status;
++        job->error = qt_last_error();
++        if (retired) retired->push_back(job);
++    }
++    e->slots.clear();
++    e->codec_M = 0;
++    e->codec_target = 1;
++    e->codec_pending_n = 0;
++}

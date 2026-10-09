@@ -195,7 +195,10 @@ fn real_bilingual_voice_cloning_streaming_and_cancellation() -> Result<()> {
             Ok(())
         },
     );
-    ensure!(cancelled.is_err(), "cooperative cancellation was ignored");
+    ensure!(
+        cancelled.unwrap_err().is::<valle_tts::Cancelled>(),
+        "cancellation was not returned as Cancelled"
+    );
     eprintln!("[test] checking sink error propagation and context reuse");
     let error = model
         .synthesize(

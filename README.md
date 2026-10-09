@@ -90,9 +90,8 @@ wav.finish()?;
 
 Output is streamed mono PCM at 24 kHz. A fallible `Send` sink receives owned
 chunks, and may run on the native compute worker. Sink errors and panics return
-to Rust without unwinding across FFI. `CancellationToken` cooperatively stops
-active generation at frame boundaries. Reference preprocessing itself is not
-interruptible.
+to Rust without unwinding across FFI. Cooperative cancellation covers reference
+preparation, prompt prefill, generation and codec compute.
 
 Long input is split at punctuation/word boundaries with a Unicode character
 limit (`--max-chunk-chars`, default 160). Inference retains one text chunk and
@@ -110,6 +109,47 @@ memory. Independent chunk synthesis can change prosody at boundaries.
 it before EOS fails instead of silently committing truncated audio. WAV output
 uses a same-directory temporary file and replaces the destination only after
 successful generation. Standard RIFF's 4 GiB limit still applies.
+
+### Cancellation
+
+Keep a clone of the request's `CancellationToken` in the UI or controlling
+thread, and call `cancel()` to stop work:
+
+```rust
+use valle_tts::{CancellationToken, SynthesisOptions};
+
+let stop = CancellationToken::default();
+let options = SynthesisOptions {
+    cancellation: stop.clone(),
+    ..Default::default()
+};
+// Pass &options to the inference worker; keep stop in the controlling thread.
+stop.cancel();
+assert!(options.cancellation.is_cancelled());
+```
+
+`CancellationToken::from_shared_flag(Arc<AtomicBool>)` also accepts a host's
+existing stop flag without a monitoring thread. The flag must only transition
+from `false` to `true` during a request. Cancellation is permanent for all token
+clones; use a fresh token for the next request.
+
+Qwen checks cancellation between text chunks and generation frames and uses
+GGML's CPU abort checkpoints during reference speaker/codec encoding, prompt
+prefill and audio decoding. Native exceptions are contained, incomplete jobs
+are detached, and borrowed stop callbacks are cleared before returning to Rust.
+
+A cancelled request returns an error identifiable with
+`error.is::<valle_tts::Cancelled>()`, including when error context is attached;
+it never reports successful partial output. Already delivered sink chunks
+cannot be retracted. Call a transactional output writer's `finish()` only after
+successful inference, and reuse the backend with a fresh token after cancellation.
+Custom backends must check the token during their own compute; the engine also
+checks before dispatch, around sink callbacks and before returning success.
+
+Cancellation is cooperative: a running tensor/CPU operator or blocking file
+operation finishes before the next checkpoint. Model constructors and downloads
+have no cancellation parameter. No fixed wall-clock cancellation latency is
+promised, and no extra polling thread is created by the library.
 
 ### Features
 
@@ -206,3 +246,4 @@ release action using the authorized crates.io owner account.
 - Streamed PCM/WAV output, cancellation, and bounded per-chunk generation.
 - Revision-pinned, verified model downloads and permissively licensed sources.
 - Independent Linux, Windows and macOS CI with real-model and crate checks.
+- Shared host cancellation flags, typed cancellation errors and reusable backends.

@@ -9,7 +9,8 @@ pub trait TtsModel: Send {
     /// Synthesize text conditioned on a reference voice and emit owned mono PCM.
     /// The sink can run on a model's compute worker; it must be Send.
     /// Backends must propagate sink failures and return an error on failed or
-    /// incomplete generation. A successful summary counts all emitted samples.
+    /// incomplete generation. Check `options.cancellation` during work and return
+    /// [`crate::Cancelled`] on cancellation. A successful summary counts all emitted samples.
     fn synthesize(
         &mut self,
         text: &str,
@@ -66,6 +67,13 @@ impl TtsEngine {
             .models
             .get_mut(model)
             .ok_or_else(|| anyhow::anyhow!("model is not registered: {model}"))?;
-        backend.synthesize(text, voice, options, emit)
+        let result = backend.synthesize(text, voice, options, &mut |chunk| {
+            options.cancellation.check()?;
+            emit(chunk)?;
+            options.cancellation.check()?;
+            Ok(())
+        })?;
+        options.cancellation.check()?;
+        Ok(result)
     }
 }

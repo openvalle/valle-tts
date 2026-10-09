@@ -1,7 +1,7 @@
 use anyhow::Result;
 use valle_tts::{
-    AudioChunk, CancellationToken, Language, ModelInfo, ReferenceVoice, SynthesisOptions,
-    SynthesisSummary, TtsEngine, TtsModel, WavOutput,
+    AudioChunk, CancellationToken, Cancelled, Language, ModelInfo, ReferenceVoice,
+    SynthesisOptions, SynthesisSummary, TtsEngine, TtsModel, WavOutput,
 };
 
 struct TestModel;
@@ -130,5 +130,38 @@ fn reference_validation_and_resampling() -> Result<()> {
     wav.finalize()?;
     let reference = ReferenceVoice::from_wav(path, None)?;
     assert!((reference.samples()[12000] - 2000.0 / 32768.0).abs() < 1e-4);
+    Ok(())
+}
+
+#[test]
+fn final_chunk_cancellation_is_typed_and_does_not_publish_partial_wav() -> Result<()> {
+    let mut engine = TtsEngine::new();
+    engine.register(TestModel)?;
+    let voice = ReferenceVoice::new(vec![0.1; 12000], 24000, None)?;
+    let options = SynthesisOptions::default();
+    let dir = tempfile::tempdir()?;
+    let output = dir.path().join("cancelled.wav");
+    std::fs::write(&output, b"existing output")?;
+    {
+        let mut writer = WavOutput::new(&output, 24000)?;
+        let error = engine
+            .synthesize("fixture", "Hello", &voice, &options, &mut |chunk| {
+                writer.write(chunk)?;
+                options.cancellation.cancel();
+                Ok(())
+            })
+            .unwrap_err();
+        assert!(error.is::<Cancelled>());
+        // A cancelled operation must never call finish on its transactional sink.
+    }
+    assert_eq!(std::fs::read(&output)?, b"existing output");
+    let result = engine.synthesize(
+        "fixture",
+        "Hello",
+        &voice,
+        &SynthesisOptions::default(),
+        &mut |_| Ok(()),
+    )?;
+    assert_eq!(result.samples, 100);
     Ok(())
 }

@@ -1,5 +1,8 @@
 //! Qwen3-TTS Base on a pinned, statically linked MIT GGML implementation.
-use crate::{AudioChunk, ModelInfo, ReferenceVoice, SynthesisOptions, SynthesisSummary, TtsModel};
+use crate::{
+    AudioChunk, CancellationToken, ModelInfo, ReferenceVoice, SynthesisOptions, SynthesisSummary,
+    TtsModel,
+};
 use anyhow::{Context, Result, ensure};
 use std::{
     ffi::{CStr, CString, c_char, c_void},
@@ -18,6 +21,7 @@ struct Request {
     temperature: f32,
     emit: unsafe extern "C" fn(*const f32, i32, *mut c_void) -> bool,
     cancel: unsafe extern "C" fn(*mut c_void) -> bool,
+    cancel_user_data: *mut c_void,
     user_data: *mut c_void,
 }
 unsafe extern "C" {
@@ -26,7 +30,13 @@ unsafe extern "C" {
     fn vt_error() -> *const c_char;
     fn vt_model_type(ctx: *mut c_void) -> *const c_char;
     fn vt_version() -> *const c_char;
-    fn vt_voice(ctx: *mut c_void, samples: *const f32, count: i32) -> *mut c_void;
+    fn vt_voice(
+        ctx: *mut c_void,
+        samples: *const f32,
+        count: i32,
+        cancel: unsafe extern "C" fn(*mut c_void) -> bool,
+        cancel_data: *mut c_void,
+    ) -> *mut c_void;
     fn vt_voice_free(voice: *mut c_void);
     fn vt_synthesize(ctx: *mut c_void, request: *const Request) -> i32;
 }
@@ -96,13 +106,26 @@ impl Qwen3 {
             .to_string_lossy()
             .into_owned()
     }
-    fn prepare(&mut self, voice: &ReferenceVoice) -> Result<()> {
+    fn prepare(&mut self, voice: &ReferenceVoice, cancellation: &CancellationToken) -> Result<()> {
+        cancellation.check()?;
         if self.prepared.as_ref().is_some_and(|(v, _)| v == voice) {
             return Ok(());
         }
         let count = i32::try_from(voice.samples.len())?;
-        let native = unsafe { vt_voice(self.context.0.as_ptr(), voice.samples.as_ptr(), count) };
-        let native = NativeVoice(NonNull::new(native).context(native_error())?);
+        let native = unsafe {
+            vt_voice(
+                self.context.0.as_ptr(),
+                voice.samples.as_ptr(),
+                count,
+                on_cancel,
+                (cancellation as *const CancellationToken).cast_mut().cast(),
+            )
+        };
+        // Own any completed reference before checking cancellation so a late
+        // stop request cannot leak its native buffers or poison the old cache.
+        let native = NonNull::new(native).map(NativeVoice);
+        cancellation.check()?;
+        let native = native.context(native_error())?;
         self.prepared = Some((voice.clone(), native));
         Ok(())
     }
@@ -128,7 +151,7 @@ impl TtsModel for Qwen3 {
         options.validate()?;
         ensure!(!text.trim().is_empty(), "text is empty");
         ensure!(!text.contains('\0'), "text contains NUL");
-        self.prepare(voice)?;
+        self.prepare(voice, &options.cancellation)?;
         let language = CString::new(options.language.name())?;
         let transcript = voice.transcript.as_deref().map(CString::new).transpose()?;
         let mut state = CallbackState {
@@ -139,7 +162,7 @@ impl TtsModel for Qwen3 {
         };
         let mut chunks = 0;
         for part in TextChunks::new(text, options.max_chunk_chars) {
-            ensure!(!options.cancellation.is_cancelled(), "synthesis cancelled");
+            options.cancellation.check()?;
             let part = CString::new(part)?;
             let request = Request {
                 text: part.as_ptr(),
@@ -151,6 +174,9 @@ impl TtsModel for Qwen3 {
                 temperature: options.temperature,
                 emit: on_audio,
                 cancel: on_cancel,
+                cancel_user_data: (&options.cancellation as *const CancellationToken)
+                    .cast_mut()
+                    .cast(),
                 user_data: (&mut state as *mut CallbackState<'_>).cast(),
             };
             // Native waits for its compute worker before returning. All pointers
@@ -160,6 +186,7 @@ impl TtsModel for Qwen3 {
             if let Some(error) = state.error.take() {
                 return Err(error);
             }
+            options.cancellation.check()?;
             ensure!(
                 status == 0,
                 "Qwen synthesis failed ({status}): {}",
@@ -171,6 +198,7 @@ impl TtsModel for Qwen3 {
             );
             chunks += 1;
         }
+        options.cancellation.check()?;
         ensure!(state.samples > 0, "Qwen generated no audio");
         Ok(SynthesisSummary {
             model: self.id.clone(),
@@ -205,10 +233,9 @@ struct CallbackState<'a> {
     samples: u64,
 }
 unsafe extern "C" fn on_cancel(user: *mut c_void) -> bool {
-    // Only native calls this, with the live state pointer from synthesize().
-    unsafe { &*(user.cast::<CallbackState<'_>>()) }
-        .cancellation
-        .is_cancelled()
+    // Native reads only a shared atomic token, never the mutable audio sink.
+    // The synchronous call joins its worker and clears the callback before return.
+    unsafe { &*(user.cast::<CancellationToken>()) }.is_cancelled()
 }
 unsafe extern "C" fn on_audio(samples: *const f32, count: i32, user: *mut c_void) -> bool {
     let state = unsafe { &mut *(user.cast::<CallbackState<'_>>()) };
@@ -235,7 +262,7 @@ unsafe extern "C" fn on_audio(samples: *const f32, count: i32, user: *mut c_void
     match result {
         Ok(Ok(())) => {
             state.samples += count as u64;
-            true
+            !state.cancellation.is_cancelled()
         }
         Ok(Err(error)) => {
             state.error = Some(error);
@@ -295,6 +322,168 @@ impl<'a> Iterator for TextChunks<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "download")]
+    #[test]
+    #[ignore = "uses pinned Q8 weights; CI invokes this explicitly after warming its model cache"]
+    fn native_preparation_and_prefill_cancel_and_context_reuse() -> Result<()> {
+        use crate::cache::{ModelCache, builtin_model};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        struct Stop {
+            token: CancellationToken,
+            polls: AtomicUsize,
+            emitted: AtomicUsize,
+            limit: AtomicUsize,
+        }
+        unsafe extern "C" fn cancel_after_compute_starts(user: *mut c_void) -> bool {
+            let state = unsafe { &*user.cast::<Stop>() };
+            if state.polls.fetch_add(1, Ordering::Relaxed) >= state.limit.load(Ordering::Relaxed) {
+                state.token.cancel();
+            }
+            state.token.is_cancelled()
+        }
+        unsafe extern "C" fn count_audio(_: *const f32, _: i32, user: *mut c_void) -> bool {
+            unsafe { &*user.cast::<Stop>() }
+                .emitted
+                .fetch_add(1, Ordering::Relaxed);
+            true
+        }
+        unsafe extern "C" fn arm_stop_after_audio(
+            _: *const f32,
+            _: i32,
+            user: *mut c_void,
+        ) -> bool {
+            let state = unsafe { &*user.cast::<Stop>() };
+            if state.emitted.fetch_add(1, Ordering::Relaxed) == 0 {
+                // Keep the token active until the next CPU graph has started,
+                // instead of cancelling directly inside the sink callback.
+                state
+                    .limit
+                    .store(state.polls.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
+            }
+            true
+        }
+        let stop = || Stop {
+            token: CancellationToken::default(),
+            polls: AtomicUsize::new(0),
+            emitted: AtomicUsize::new(0),
+            limit: AtomicUsize::new(1),
+        };
+        let root = std::env::var_os("VALLE_TTS_TEST_CACHE")
+            .context("VALLE_TTS_TEST_CACHE must point to verified models")?;
+        let spec = builtin_model("qwen3-tts-0.6b-base-q8")?;
+        let dir = ModelCache::new(root).ensure(&spec, true)?;
+        let mut model = Qwen3::load(
+            &spec.id,
+            dir.join(&spec.files[0].path),
+            dir.join(&spec.files[1].path),
+        )?;
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+        let voice = ReferenceVoice::from_wav(
+            fixtures.join("sample1.wav"),
+            Some(
+                std::fs::read_to_string(fixtures.join("sample1.txt"))?
+                    .trim()
+                    .to_owned(),
+            ),
+        )?;
+
+        let preparation = stop();
+        let extracted = unsafe {
+            vt_voice(
+                model.context.0.as_ptr(),
+                voice.samples.as_ptr(),
+                voice.samples.len() as i32,
+                cancel_after_compute_starts,
+                (&preparation as *const Stop).cast_mut().cast(),
+            )
+        };
+        let extracted = NonNull::new(extracted).map(NativeVoice);
+        ensure!(
+            extracted.is_none() && preparation.token.is_cancelled(),
+            "reference graph ignored cancellation"
+        );
+        ensure!(
+            preparation.polls.load(Ordering::Relaxed) >= 2,
+            "reference cancellation happened before CPU compute"
+        );
+        eprintln!("[test] reference CPU graph cancelled after compute started");
+
+        let active = CancellationToken::default();
+        let reference = unsafe {
+            vt_voice(
+                model.context.0.as_ptr(),
+                voice.samples.as_ptr(),
+                voice.samples.len() as i32,
+                on_cancel,
+                (&active as *const CancellationToken).cast_mut().cast(),
+            )
+        };
+        let reference = NativeVoice(NonNull::new(reference).context(native_error())?);
+        let prefill = stop();
+        let text = CString::new("The quick brown fox jumps over the lazy dog.")?;
+        let language = CString::new("english")?;
+        let request = Request {
+            text: text.as_ptr(),
+            language: language.as_ptr(),
+            transcript: std::ptr::null(),
+            voice: reference.0.as_ptr(),
+            seed: 42,
+            max_tokens: 256,
+            temperature: 0.9,
+            emit: count_audio,
+            cancel: cancel_after_compute_starts,
+            cancel_user_data: (&prefill as *const Stop).cast_mut().cast(),
+            user_data: (&prefill as *const Stop).cast_mut().cast(),
+        };
+        let status = unsafe { vt_synthesize(model.context.0.as_ptr(), &request) };
+        ensure!(
+            status != 0 && prefill.token.is_cancelled(),
+            "prefill graph ignored cancellation"
+        );
+        ensure!(
+            prefill.polls.load(Ordering::Relaxed) >= 2
+                && prefill.emitted.load(Ordering::Relaxed) == 0,
+            "cancellation must stop compute before first audio"
+        );
+        eprintln!("[test] prefill CPU graph cancelled before first audio");
+
+        let generation = stop();
+        generation.limit.store(usize::MAX, Ordering::Relaxed);
+        let request = Request {
+            emit: arm_stop_after_audio,
+            cancel_user_data: (&generation as *const Stop).cast_mut().cast(),
+            user_data: (&generation as *const Stop).cast_mut().cast(),
+            ..request
+        };
+        let status = unsafe { vt_synthesize(model.context.0.as_ptr(), &request) };
+        ensure!(
+            status != 0 && generation.token.is_cancelled(),
+            "generation CPU graph ignored cancellation"
+        );
+        ensure!(
+            generation.emitted.load(Ordering::Relaxed) == 1,
+            "audio continued after graph cancellation"
+        );
+        eprintln!("[test] active generation CPU graph cancelled after the first audio chunk");
+
+        let result = model.synthesize(
+            "Hello.",
+            &voice,
+            &SynthesisOptions::default(),
+            &mut |chunk| {
+                ensure!(
+                    chunk.samples.iter().all(|sample| sample.is_finite()),
+                    "invalid reused output"
+                );
+                Ok(())
+            },
+        )?;
+        ensure!(result.samples > 0, "cancelled context was not reusable");
+        eprintln!("[test] native context successfully reused with a fresh token");
+        Ok(())
+    }
     #[test]
     fn unicode_chunking_keeps_every_character_in_order() {
         let text = "你好，Valle！这是中英混读测试。Hello world! 再见。";

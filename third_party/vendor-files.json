@@ -594,7 +594,7 @@
   },
   {
     "path": "vendor/qwentts/src/pipeline-tts.cpp",
-    "sha256": "9477d2e5114abbf4db3fc7c0fd2e23c380fecf565f703b620ceab30cf9d97117",
+    "sha256": "a0e11585355f2899f63044d07cfb3b88aa54bb5220231f3194618ec1ba1e0c40",
     "upstream_sha256": "a897cca5165bc901a679819fd9594aa2617a8243cb7771572d88b8e25eb1fc85"
   },
   {
@@ -619,11 +619,13 @@
   },
   {
     "path": "vendor/qwentts/src/qwen.cpp",
-    "sha256": "e3a3192875c56db94f1613c762dfc3ec6616808aa4fe4886c1861bf4b3773965"
+    "sha256": "457c31b3bf73cbbd49f6b7a7931b5fd910da8ebe4d442f1acd583cad9e206256",
+    "upstream_sha256": "e3a3192875c56db94f1613c762dfc3ec6616808aa4fe4886c1861bf4b3773965"
   },
   {
     "path": "vendor/qwentts/src/qwen.h",
-    "sha256": "c2b83bb0a5d98e7e9e5a09903c7f0263bdafe9bd45bf25d8b3d130ad99c777a0"
+    "sha256": "23149dd73539c00f872ca229608fcf5592142675cb38dc330a0438b48b16c049",
+    "upstream_sha256": "c2b83bb0a5d98e7e9e5a09903c7f0263bdafe9bd45bf25d8b3d130ad99c777a0"
   },
   {
     "path": "vendor/qwentts/src/rvq-file.h",

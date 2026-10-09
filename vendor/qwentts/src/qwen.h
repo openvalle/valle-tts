@@ -218,6 +218,12 @@ QT_API void qt_voice_ref_free(struct qt_voice_ref * ref);
 // audio frame, i.e. 1 / 12 Hz ~ 83 ms.
 typedef bool (*qt_cancel_cb)(void * user_data);
 
+// Modified by Valle contributors: an exclusively owned, idle CPU context can
+// install a request-scoped GGML abort callback for reference extraction,
+// prefill and codec compute. Clear it after the synchronous call returns;
+// callback/data must remain valid until then. Not for concurrent/batched use.
+QT_API void qt_set_compute_cancel(struct qt_context * q, qt_cancel_cb cancel, void * user_data);
+
 // Streaming output callback. When set on qt_tts_params, the synth
 // pipeline runs in streaming mode: audio is decoded chunk by chunk from
 // the AR codec frames and emitted through this callback rather than

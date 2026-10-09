@@ -74,7 +74,9 @@ jobs:
         run: cargo run --locked -- download --cache-dir models
       - name: Real bilingual cloning, streaming and cancellation
         timeout-minutes: 15
-        run: cargo test --locked --test real_models -- --ignored --nocapture
+        run: |
+          cargo test --locked --lib native_preparation_and_prefill_cancel_and_context_reuse -- --ignored --nocapture
+          cargo test --locked --test real_models -- --ignored --nocapture
       - name: Upload generated WAV files and validation receipt
         if: always()
         uses: actions/upload-artifact@v7.0.2
