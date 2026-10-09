@@ -53,12 +53,20 @@ impl Drop for NativeVoice {
 // This owns immutable malloc buffers; only &mut Qwen3 accesses or releases them.
 unsafe impl Send for NativeVoice {}
 
+/// Qwen3-TTS Base using the statically linked GGML CPU backend.
+/// The handle is `Send`, and `&mut self` serializes synthesis and reference caching.
 pub struct Qwen3 {
     context: NativeContext,
     prepared: Option<(ReferenceVoice, NativeVoice)>,
     id: String,
 }
 impl Qwen3 {
+    /// Load local Talker and codec GGUF files for a supported 0.6B Base model ID.
+    /// No files are downloaded. Build-time CMake/C++ requirements are documented
+    /// in the crate README; the resulting native runtime is linked statically.
+    ///
+    /// # Errors
+    /// Rejects unsupported IDs, invalid paths, failed model loading and non-Base checkpoints.
     pub fn load(id: &str, talker: impl AsRef<Path>, codec: impl AsRef<Path>) -> Result<Self> {
         ensure!(
             matches!(id, "qwen3-tts-0.6b-base-q8" | "qwen3-tts-0.6b-base-q4"),
@@ -82,6 +90,7 @@ impl Qwen3 {
             id: id.to_owned(),
         })
     }
+    /// Return the pinned native backend version used by this build.
     pub fn backend_version() -> String {
         unsafe { CStr::from_ptr(vt_version()) }
             .to_string_lossy()
